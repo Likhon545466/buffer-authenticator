@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buffer Authenticator</title>
+  <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="logo-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Buffer Authenticator</h1>
+          <span>Secure Offline 2FA</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-header-export" class="icon-btn hidden" title="Export & Backup">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+        <button id="btn-header-lock" class="icon-btn hidden" title="Lock Vault">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </button>
+        <button id="btn-header-settings" class="icon-btn" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- State 1: Initialization View -->
+    <div id="view-init" class="view hidden">
+      <div class="security-card">
+        <div class="icon-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h2>Create Master Password</h2>
+        <p>Set a master password to initialize your AES-256-GCM encrypted offline vault.</p>
+
+        <div id="init-error" class="error-banner hidden"></div>
+
+        <form id="form-init">
+          <div class="form-group">
+            <label for="init-password">Master Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="init-password" placeholder="At least 8 characters" required minlength="8" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" data-target="init-password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="init-confirm">Confirm Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="init-confirm" placeholder="Re-enter master password" required minlength="8" autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" data-target="init-confirm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" id="btn-init-submit">
+            <span>Create Encrypted Vault</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- State 2: Locked View -->
+    <div id="view-lock" class="view hidden">
+      <div class="security-card">
+        <div class="icon-wrapper lock-glow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h2>Vault is Locked</h2>
+        <p>Enter your master password to unlock and access your 2FA accounts.</p>
+
+        <div id="unlock-error" class="error-banner hidden"></div>
+
+        <form id="form-unlock">
+          <div class="form-group">
+            <label for="unlock-password">Master Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="unlock-password" placeholder="Enter password" required autocomplete="current-password">
+              <button type="button" class="password-toggle-btn" data-target="unlock-password">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" id="btn-unlock-submit">
+            <span>Unlock Vault</span>
+          </button>
+        </form>
+
+        <button type="button" id="btn-biometric-unlock" class="btn-secondary hidden" style="width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <path d="M12 2a10 10 0 0 0-10 10c0 3.3 1.6 6.2 4.1 8"/>
+            <path d="M12 6a6 6 0 0 0-6 6c0 2 1 3.8 2.5 4.9"/>
+            <path d="M12 10a2 2 0 0 0-2 2c0 .7.4 1.3.9 1.7"/>
+            <path d="M12 14v6"/>
+            <path d="M16 12a4 4 0 0 1-1.2 2.8"/>
+            <path d="M19.9 12a7.9 7.9 0 0 0-2.3-5.6"/>
+          </svg>
+          <span>Unlock with Fingerprint</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- State 3: Main Unlocked View -->
+    <div id="view-main" class="view hidden">
+      <div class="controls-bar">
+        <div class="search-box">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search accounts..." autocomplete="off">
+          <button type="button" id="btn-clear-search" class="clear-search-btn hidden" title="Clear search" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <button id="btn-add-account" class="btn-fab" title="Add new account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Add</span>
+        </button>
+      </div>
+
+      <!-- Category Filter Pills Bar -->
+      <div class="category-filters-row" id="category-filters">
+        <button type="button" class="category-pill active" data-category="all">All</button>
+        <button type="button" class="category-pill" data-category="pinned">⭐ Pinned</button>
+        <button type="button" class="category-pill" data-category="Work">Work</button>
+        <button type="button" class="category-pill" data-category="Personal">Personal</button>
+        <button type="button" class="category-pill" data-category="Finance">Finance</button>
+        <button type="button" class="category-pill" data-category="Social">Social</button>
+      </div>
+
+      <div id="accounts-container" class="accounts-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <p>No 2FA accounts found</p>
+        <button id="btn-empty-add" class="btn-secondary" style="margin-top: 10px;">+ Add Your First Account</button>
+      </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="modal-add" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modal-title">Add 2FA Account</h3>
+          <button id="btn-close-modal" class="icon-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="tabs-nav">
+          <button type="button" class="tab-btn active" data-tab="tab-uri">Paste URI</button>
+          <button type="button" class="tab-btn" data-tab="tab-qr">Scan QR Code</button>
+          <button type="button" class="tab-btn" data-tab="tab-manual">Manual Entry</button>
+        </div>
+
+        <div id="modal-error" class="error-banner hidden"></div>
+
+        <!-- Tab 1: Paste URI -->
+        <div id="tab-uri" class="tab-pane">
+          <form id="form-add-uri">
+            <div class="form-group">
+              <label for="uri-input">otpauth:// URI or Secret</label>
+              <input type="text" id="uri-input" placeholder="otpauth://totp/Service:user?secret=..." required>
+            </div>
+            <div class="form-group">
+              <label for="uri-category">Category</label>
+              <select id="uri-category">
+                <option value="General" selected>General</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Finance">Finance</option>
+                <option value="Social">Social</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-primary" style="margin-top: 14px;">Add Account</button>
+          </form>
+        </div>
+
+        <!-- Tab 2: Scan QR Code -->
+        <div id="tab-qr" class="tab-pane hidden">
+          <div class="qr-scanner-box">
+            <button type="button" id="btn-scan-tab-qr" class="btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span>Scan Active Tab for QR Code</span>
+            </button>
+            <div class="qr-divider"><span>OR</span></div>
+            <div id="dropzone-qr" class="qr-dropzone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="28" height="28">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <p>Upload a QR code image</p>
+              <input type="file" id="input-qr-file" accept="image/*" class="hidden">
+              <button type="button" id="btn-browse-qr" class="btn-secondary" style="font-size: 11px; padding: 4px 10px; margin-top: 6px;">Browse Image</button>
+            </div>
+            <div id="qr-feedback" class="qr-feedback hidden"></div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Manual Form -->
+        <div id="tab-manual" class="tab-pane hidden">
+          <form id="form-add-manual">
+            <div class="form-group">
+              <label for="manual-issuer">Service / Issuer</label>
+              <input type="text" id="manual-issuer" placeholder="e.g. GitHub, Google" required>
+            </div>
+            <div class="form-group">
+              <label for="manual-account">Account / Email</label>
+              <input type="text" id="manual-account" placeholder="e.g. alex@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="manual-secret">Secret Key (Base32)</label>
+              <input type="text" id="manual-secret" placeholder="e.g. JBSWY3DPEHPK3PXP" required autocomplete="off">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <div class="form-group" style="flex: 1;">
+                <label for="manual-digits">Digits</label>
+                <select id="manual-digits">
+                  <option value="6" selected>6 Digits</option>
+                  <option value="8">8 Digits</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="manual-period">Period</label>
+                <select id="manual-period">
+                  <option value="30" selected>30 seconds</option>
+                  <option value="60">60 seconds</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="manual-category">Category</label>
+              <select id="manual-category">
+                <option value="General" selected>General</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+                <option value="Finance">Finance</option>
+                <option value="Social">Social</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-primary" style="margin-top: 10px;">Save Account</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Account Modal -->
+    <div id="modal-edit" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Edit 2FA Account</h3>
+          <button id="btn-close-edit-modal" class="icon-btn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div id="modal-edit-error" class="error-banner hidden"></div>
+
+        <form id="form-edit-account">
+          <input type="hidden" id="edit-id">
+          <div class="form-group">
+            <label for="edit-issuer">Service / Issuer</label>
+            <input type="text" id="edit-issuer" placeholder="e.g. GitHub, Google" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-account">Account / Email</label>
+            <input type="text" id="edit-account" placeholder="e.g. alex@example.com" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-secret">New Secret Key (Base32) <span class="label-hint">(optional)</span></label>
+            <input type="text" id="edit-secret" placeholder="Leave empty to keep current secret" autocomplete="off">
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <div class="form-group" style="flex: 1;">
+              <label for="edit-digits">Digits</label>
+              <select id="edit-digits">
+                <option value="6">6 Digits</option>
+                <option value="8">8 Digits</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="edit-period">Period</label>
+              <select id="edit-period">
+                <option value="30">30 seconds</option>
+                <option value="60">60 seconds</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="edit-category">Category</label>
+            <select id="edit-category">
+              <option value="General">General</option>
+              <option value="Work">Work</option>
+              <option value="Personal">Personal</option>
+              <option value="Finance">Finance</option>
+              <option value="Social">Social</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn-secondary" id="btn-cancel-edit" style="flex: 1;">Cancel</button>
+            <button type="submit" class="btn-primary" style="flex: 2;">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Account Details Modal -->
+    <div id="modal-details" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Account Details</h3>
+          <button id="btn-close-details-modal" class="icon-btn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="details-body">
+          <div class="details-card">
+            <div class="details-field">
+              <span class="details-label">Issuer</span>
+              <span class="details-value" id="details-issuer">-</span>
+            </div>
+            <div class="details-field">
+              <span class="details-label">Account</span>
+              <span class="details-value" id="details-account">-</span>
+            </div>
+            <div class="details-field">
+              <span class="details-label">Parameters</span>
+              <span class="details-value" id="details-params">6 Digits • 30s Period • SHA1</span>
+            </div>
+            <div class="details-field">
+              <span class="details-label">Upcoming Next Code</span>
+              <span class="details-value text-accent" id="details-next-code" style="font-family: monospace; font-weight: 700; color: var(--md-sys-color-primary);">-</span>
+            </div>
+            <div class="details-field">
+              <span class="details-label">Secret Key</span>
+              <div class="secret-display-row">
+                <input type="password" id="details-secret" readonly value="••••••••••••••••">
+                <button type="button" class="icon-btn-sm" id="btn-toggle-secret" title="Toggle visibility">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+                <button type="button" class="icon-btn-sm" id="btn-copy-secret" title="Copy Secret">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-primary" id="btn-done-details" style="margin-top: 16px; width: 100%;">Done</button>
+      </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="modal-export" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Export & Backup</h3>
+          <button id="btn-close-export-modal" class="icon-btn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div id="modal-export-error" class="error-banner hidden"></div>
+
+        <div class="export-options-list">
+          <div class="export-card">
+            <div class="export-card-header">
+              <div class="export-card-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </div>
+              <div class="export-card-info">
+                <h4>Save 2FA Accounts Backup (.json)</h4>
+                <p>Download an encrypted backup file of all accounts for safe keeping or future restore.</p>
+              </div>
+            </div>
+
+            <form id="form-export-backup" style="margin-top: 10px;">
+              <div class="form-group">
+                <label for="export-password-input">Master Password</label>
+                <div class="input-wrapper">
+                  <input type="password" id="export-password-input" placeholder="Enter password to authorize export" required>
+                  <button type="button" class="password-toggle-btn" data-target="export-password-input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" class="btn-primary" id="btn-submit-export-backup" style="width: 100%;">
+                <span>Download Accounts Backup (.json)</span>
+              </button>
+            </form>
+          </div>
+
+          <div class="export-card" style="margin-top: 12px;">
+            <div class="export-card-header">
+              <div class="export-card-icon zip-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                  <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+              </div>
+              <div class="export-card-info">
+                <h4>Extension Package File (.zip)</h4>
+                <p>Saved in project root: <code>buffer-authenticator-v1.0.1.zip</code></p>
+                <p style="font-size: 11px; margin-top: 4px; color: var(--md-sys-color-primary);">Ready to archive or install offline in any Chrome browser via "Load Unpacked".</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      <span id="toast-text">Code copied!</span>
+    </div>
+  </div>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

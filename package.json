@@ -1,0 +1,27 @@
+{
+  "name": "buffer-authenticator",
+  "version": "1.0.1",
+  "description": "Buffer Authenticator - Secure, offline, privacy-first TOTP 2FA authenticator Chrome extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "tsc && vite build",
+    "package": "npm run build && rm -f buffer-authenticator-v1.0.1.zip buffer-authenticator.zip && (cd dist && zip -r ../buffer-authenticator-v1.0.1.zip . && cp ../buffer-authenticator-v1.0.1.zip ../buffer-authenticator.zip && cd ..)",
+    "export": "npm run package",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "otpauth": "^9.3.6"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.308",
+    "@types/node": "^22.13.9",
+    "@vitest/coverage-v8": "^5.0.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^5.0.4"
+  }
+}

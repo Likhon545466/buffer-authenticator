@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Buffer Authenticator",
+  "description": "Privacy-first, offline TOTP authenticator with AES-256-GCM encrypted vault and smart autofill.",
+  "version": "1.0.1",
+  "default_locale": "en",
+  "icons": {
+    "16": "icons/buffer-icon-16.png",
+    "48": "icons/buffer-icon-48.png",
+    "128": "icons/buffer-icon-128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/buffer-icon-16.png",
+      "48": "icons/buffer-icon-48.png",
+      "128": "icons/buffer-icon-128.png"
+    },
+    "default_title": "Buffer Authenticator"
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "alarms",
+    "idle",
+    "scripting"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      },
+      "description": "Open Buffer Authenticator"
+    }
+  }
+}

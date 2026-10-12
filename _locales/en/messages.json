@@ -1,0 +1,54 @@
+{
+  "extensionName": {
+    "message": "Buffer Authenticator",
+    "description": "The extension title"
+  },
+  "extensionDescription": {
+    "message": "Privacy-first, offline TOTP authenticator with AES-256-GCM encrypted vault and smart autofill.",
+    "description": "The extension description"
+  },
+  "lockVault": {
+    "message": "Lock Vault",
+    "description": "Button to lock the vault"
+  },
+  "unlockVault": {
+    "message": "Unlock Vault",
+    "description": "Button to unlock the vault"
+  },
+  "masterPassword": {
+    "message": "Master Password",
+    "description": "Label for master password"
+  },
+  "confirmPassword": {
+    "message": "Confirm Password",
+    "description": "Label for password confirmation"
+  },
+  "createVault": {
+    "message": "Create Encrypted Vault",
+    "description": "Button to initialize vault"
+  },
+  "searchAccounts": {
+    "message": "Search accounts...",
+    "description": "Placeholder for account search"
+  },
+  "addAccount": {
+    "message": "Add Account",
+    "description": "Button to add a new 2FA account"
+  },
+  "copied": {
+    "message": "Code copied to clipboard!",
+    "description": "Toast message after copying code"
+  },
+  "settings": {
+    "message": "Settings",
+    "description": "Settings label"
+  },
+  "exportVault": {
+    "message": "Export Encrypted Backup",
+    "description": "Export button"
+  },
+  "importVault": {
+    "message": "Import Backup",
+    "description": "Import button"
+  }
+}

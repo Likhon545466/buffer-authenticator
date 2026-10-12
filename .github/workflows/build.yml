@@ -1,0 +1,53 @@
+name: CI Build & Security Audit
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Dependency Audit
+        run: npm audit --audit-level=high
+
+      - name: Run Test Suite & Coverage
+        run: npm run test:coverage
+
+      - name: Build Extension (dist/)
+        run: npm run build
+
+      - name: Verify dist/ contains manifest.json
+        run: |
+          test -f dist/manifest.json || exit 1
+          test -f dist/icons/icon-16.png || exit 1
+          test -f dist/icons/icon-48.png || exit 1
+          test -f dist/icons/icon-128.png || exit 1
+          test -f dist/background/service-worker.js || exit 1
+          test -f dist/content/content.js || exit 1
+
+      - name: Package Extension Artifact
+        run: |
+          cd dist
+          zip -r ../buffer-authenticator.zip .
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: buffer-authenticator
+          path: buffer-authenticator.zip

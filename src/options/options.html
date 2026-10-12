@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buffer Authenticator Settings</title>
+  <link rel="stylesheet" href="./options.css">
+</head>
+<body>
+  <div class="options-container">
+    <!-- Top Header -->
+    <header class="options-header">
+      <div class="brand">
+        <div class="logo-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h1>Buffer Authenticator Preferences</h1>
+          <p>Local-only 2FA security and vault preferences</p>
+        </div>
+      </div>
+      <div class="header-badge">
+        <span class="status-dot"></span>
+        <span>AES-256-GCM Vault</span>
+      </div>
+    </header>
+
+    <!-- Floating Feedback Toast/Banner -->
+    <div id="status-banner" class="banner hidden">
+      <span id="banner-icon" class="banner-icon">✓</span>
+      <span id="banner-message" class="banner-text"></span>
+      <button type="button" id="btn-close-banner" class="banner-close" aria-label="Close notification">✕</button>
+    </div>
+
+    <!-- M3 Expressive Segmented Tab Bar -->
+    <nav class="settings-tabs" aria-label="Settings navigation">
+      <button type="button" class="tab-pill active" data-tab="tab-security">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Security & Lock</span>
+      </button>
+
+      <button type="button" class="tab-pill" data-tab="tab-backup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span>Data & Backup</span>
+      </button>
+
+      <button type="button" class="tab-pill" data-tab="tab-password">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span>Master Password</span>
+      </button>
+    </nav>
+
+    <!-- Pane 1: Security & Auto-Lock -->
+    <section id="tab-security" class="tab-pane">
+      <div class="m3-card">
+        <div class="card-header">
+          <h2>Lock & Idle Policies</h2>
+          <p>Configure automated vault locking when leaving your browser unattended.</p>
+        </div>
+
+        <div class="m3-row">
+          <div class="row-info">
+            <h3>Inactivity Auto-Lock</h3>
+            <p>Automatically lock the vault after a period of browser idle time</p>
+          </div>
+          <div class="row-control">
+            <select id="select-autolock">
+              <option value="1">1 minute</option>
+              <option value="5" selected>5 minutes (Recommended)</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="0">Never (Only browser close)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="m3-row">
+          <div class="row-info">
+            <h3>Lock on System Screen Lock</h3>
+            <p>Purge decrypted session keys immediately when computer screen locks</p>
+          </div>
+          <div class="row-control">
+            <label class="switch" title="Toggle screen lock auto-lock">
+              <input type="checkbox" id="check-idle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="m3-row">
+          <div class="row-info">
+            <h3>Clipboard Auto-Clear</h3>
+            <p>Automatically wipe copied 2FA codes and secret keys from system clipboard</p>
+          </div>
+          <div class="row-control">
+            <select id="select-clipboard">
+              <option value="15">15 seconds</option>
+              <option value="30" selected>30 seconds (Recommended)</option>
+              <option value="60">60 seconds</option>
+              <option value="0">Never (Manual)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="m3-row">
+          <div class="row-info">
+            <h3>Biometric Quick-Unlock</h3>
+            <p>Allow unlocking with Fingerprint / Touch ID while browser session is active</p>
+          </div>
+          <div class="row-control">
+            <label class="switch" title="Toggle biometric quick-unlock">
+              <input type="checkbox" id="check-biometric">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pane 2: Backup & Import -->
+    <section id="tab-backup" class="tab-pane hidden">
+      <div class="m3-card">
+        <div class="card-header">
+          <h2>Vault Migration & Backups</h2>
+          <p>Easily import from Google Authenticator, Aegis, Bitwarden, 2FAS, or plain text backups.</p>
+        </div>
+
+        <!-- Mode Toggle -->
+        <div class="segmented-control">
+          <button type="button" id="btn-mode-import" class="segment-btn active">Import Accounts</button>
+          <button type="button" id="btn-mode-export" class="segment-btn">Export Backup</button>
+        </div>
+
+        <!-- Sub-panel: Import -->
+        <div id="panel-import">
+          <div class="format-badges">
+            <span class="badge">Google Authenticator</span>
+            <span class="badge">Aegis JSON</span>
+            <span class="badge">Bitwarden</span>
+            <span class="badge">2FAS JSON</span>
+            <span class="badge">Plaintext TXT</span>
+            <span class="badge">otpauth://</span>
+          </div>
+
+          <div class="import-type-selector">
+            <button type="button" id="tab-import-file" class="type-pill active">File Upload (.json / .txt)</button>
+            <button type="button" id="tab-import-text" class="type-pill">Paste Text / URIs</button>
+          </div>
+
+          <!-- File Upload Zone -->
+          <div id="pane-import-file" class="upload-zone">
+            <input type="file" id="file-import" accept=".json,.txt,text/plain,application/json">
+            <div id="upload-prompt" class="upload-zone-content">
+              <div class="upload-icon-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <p><strong>Click to browse</strong> or drag and drop your backup file</p>
+              <span class="upload-hint">Supports Aegis mobile export or plain text</span>
+            </div>
+
+            <!-- Dynamic Selected File Badge -->
+            <div id="file-info-badge" class="file-badge hidden">
+              <div class="file-badge-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+              </div>
+              <div class="file-badge-text">
+                <span id="file-name-display" class="file-name">backup.json</span>
+                <span id="file-size-display" class="file-size">0 KB</span>
+              </div>
+              <button type="button" id="btn-remove-file" class="btn-clear-file" title="Change file">✕</button>
+            </div>
+          </div>
+
+          <!-- Direct Paste Zone -->
+          <div id="pane-import-text" class="hidden">
+            <textarea id="text-import" placeholder="Paste otpauth:// URIs (one per line) or exported text here..." rows="5"></textarea>
+          </div>
+
+          <div class="form-field">
+            <label for="import-pwd">Backup Password <span class="muted-note">(only needed if Aegis export is encrypted)</span></label>
+            <div class="input-wrapper">
+              <input type="password" id="import-pwd" placeholder="Leave empty for plaintext exports">
+              <button type="button" class="pwd-toggle" data-target="import-pwd" title="Toggle password visibility">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="button" id="btn-import" class="btn-primary">
+            <span>Import Accounts</span>
+          </button>
+        </div>
+
+        <!-- Sub-panel: Export -->
+        <div id="panel-export" class="hidden">
+          <div class="export-description">
+            <p>Downloads an encrypted backup file containing all your 2FA accounts secured with your master password.</p>
+          </div>
+
+          <div class="form-field">
+            <label for="export-pwd">Confirm Master Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="export-pwd" placeholder="Enter master password to authorize export">
+              <button type="button" class="pwd-toggle" data-target="export-pwd" title="Toggle password visibility">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="button" id="btn-export" class="btn-primary">
+            <span>Download Encrypted Backup (.json)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pane 3: Master Password -->
+    <section id="tab-password" class="tab-pane hidden">
+      <div class="m3-card">
+        <div class="card-header">
+          <h2>Update Master Password</h2>
+          <p>Re-encrypts your entire vault with a fresh random salt and derived key.</p>
+        </div>
+
+        <form id="form-change-pwd">
+          <div class="form-field">
+            <label for="pwd-current">Current Master Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="pwd-current" placeholder="Current password" required>
+              <button type="button" class="pwd-toggle" data-target="pwd-current" title="Toggle password visibility">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="pwd-new">New Master Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="pwd-new" placeholder="At least 8 characters" required minlength="8">
+              <button type="button" class="pwd-toggle" data-target="pwd-new" title="Toggle password visibility">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="pwd-confirm">Confirm New Password</label>
+            <div class="input-wrapper">
+              <input type="password" id="pwd-confirm" placeholder="Re-enter new password" required minlength="8">
+              <button type="button" class="pwd-toggle" data-target="pwd-confirm" title="Toggle password visibility">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" style="margin-top: 14px;">
+            <span>Update Master Password</span>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Clean Footer -->
+    <footer class="options-footer">
+      <span>Buffer Authenticator • AES-256-GCM Encrypted • 100% Offline • Zero Telemetry</span>
+    </footer>
+  </div>
+
+  <script type="module" src="./options.ts"></script>
+</body>
+</html>
