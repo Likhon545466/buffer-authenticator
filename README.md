@@ -35,7 +35,7 @@
    ```bash
    git clone https://github.com/Likhon545466/buffer-authenticator.git
    ```
-2. Unpack the included [`buffer-authenticator-v1.0.1.zip`](./buffer-authenticator-v1.0.1.zip) or use the repository directory after building.
+2. Unpack the included [`buffer-authenticator.zip`](./buffer-authenticator.zip) or use the repository directory after building.
 3. Open Google Chrome (or any Chromium browser like Brave, Edge, Opera) and navigate to:
    ```text
    chrome://extensions/

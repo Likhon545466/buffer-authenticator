@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "tsc && vite build",
-    "package": "npm run build && rm -f buffer-authenticator-v1.0.1.zip buffer-authenticator.zip && (cd dist && zip -r ../buffer-authenticator-v1.0.1.zip . && cp ../buffer-authenticator-v1.0.1.zip ../buffer-authenticator.zip && cd ..)",
+    "package": "npm run build && rm -f buffer-authenticator.zip && (cd dist && zip -r ../buffer-authenticator.zip . && cd ..)",
     "export": "npm run package",
     "test": "vitest run",
     "test:watch": "vitest",
