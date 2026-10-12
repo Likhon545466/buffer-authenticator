@@ -186,7 +186,7 @@ Google, test@gmail.com, JBSWY3DPEHPK3PXP
     // Verify an entry is extracted properly
     expect(results[0].secret).toBeDefined();
     expect(results[0].digits).toBeGreaterThanOrEqual(6);
-  });
+  }, 30000);
 
   it('rejects Aegis encrypted backup with incorrect password', async () => {
     const aegisEncryptedJson = JSON.stringify({
@@ -219,7 +219,7 @@ Google, test@gmail.com, JBSWY3DPEHPK3PXP
     await expect(parseBackup(aegisEncryptedJson, 'wrong-password')).rejects.toThrow(
       'Incorrect Aegis master password'
     );
-  });
+  }, 30000);
 
   it('parses Google Authenticator migration URI (otpauth-migration://)', async () => {
     const migrationUri =

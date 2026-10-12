@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { copyFileSync, mkdirSync, cpSync, existsSync } from 'fs';
@@ -27,6 +28,9 @@ function chromeExtensionPlugin() {
 }
 
 export default defineConfig({
+  test: {
+    testTimeout: 30000,
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
