@@ -1,12 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import { PBKDF2_ITERATIONS, SALT_BYTE_LENGTH, IV_BYTE_LENGTH } from '../../src/crypto/webcrypto';
 
 describe('Security Checklist Verification (Non-Negotiable)', () => {
   const rootDir = path.resolve(__dirname, '../../');
   const distDir = path.resolve(rootDir, 'dist');
   const manifestPath = path.resolve(distDir, 'manifest.json');
+
+  beforeAll(() => {
+    if (!fs.existsSync(distDir) || !fs.existsSync(manifestPath)) {
+      execSync('npm run build', { cwd: rootDir, stdio: 'pipe' });
+    }
+  });
 
   it('Verifies Encryption at Rest & Key Derivation Parameters', () => {
     // PBKDF2 must be >= 250,000 iterations

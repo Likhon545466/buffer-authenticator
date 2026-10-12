@@ -26,11 +26,11 @@ jobs:
       - name: Run Dependency Audit
         run: npm audit --audit-level=high
 
-      - name: Run Test Suite & Coverage
-        run: npm run test:coverage
-
       - name: Build Extension (dist/)
         run: npm run build
+
+      - name: Run Test Suite & Coverage
+        run: npm run test:coverage
 
       - name: Verify dist/ contains manifest.json
         run: |
