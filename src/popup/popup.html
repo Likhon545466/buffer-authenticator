@@ -160,15 +160,6 @@
         </button>
       </div>
 
-      <!-- Category Filter Pills Bar -->
-      <div class="category-filters-row" id="category-filters">
-        <button type="button" class="category-pill active" data-category="all">All</button>
-        <button type="button" class="category-pill" data-category="pinned">⭐ Pinned</button>
-        <button type="button" class="category-pill" data-category="Work">Work</button>
-        <button type="button" class="category-pill" data-category="Personal">Personal</button>
-        <button type="button" class="category-pill" data-category="Finance">Finance</button>
-        <button type="button" class="category-pill" data-category="Social">Social</button>
-      </div>
 
       <div id="accounts-container" class="accounts-list">
         <!-- Rendered dynamically -->
@@ -212,16 +203,7 @@
               <label for="uri-input">otpauth:// URI or Secret</label>
               <input type="text" id="uri-input" placeholder="otpauth://totp/Service:user?secret=..." required>
             </div>
-            <div class="form-group">
-              <label for="uri-category">Category</label>
-              <select id="uri-category">
-                <option value="General" selected>General</option>
-                <option value="Work">Work</option>
-                <option value="Personal">Personal</option>
-                <option value="Finance">Finance</option>
-                <option value="Social">Social</option>
-              </select>
-            </div>
+
             <button type="submit" class="btn-primary" style="margin-top: 14px;">Add Account</button>
           </form>
         </div>
@@ -284,16 +266,7 @@
                 </select>
               </div>
             </div>
-            <div class="form-group">
-              <label for="manual-category">Category</label>
-              <select id="manual-category">
-                <option value="General" selected>General</option>
-                <option value="Work">Work</option>
-                <option value="Personal">Personal</option>
-                <option value="Finance">Finance</option>
-                <option value="Social">Social</option>
-              </select>
-            </div>
+
             <button type="submit" class="btn-primary" style="margin-top: 10px;">Save Account</button>
           </form>
         </div>
@@ -345,16 +318,7 @@
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label for="edit-category">Category</label>
-            <select id="edit-category">
-              <option value="General">General</option>
-              <option value="Work">Work</option>
-              <option value="Personal">Personal</option>
-              <option value="Finance">Finance</option>
-              <option value="Social">Social</option>
-            </select>
-          </div>
+
           <div style="display: flex; gap: 8px; margin-top: 14px;">
             <button type="button" class="btn-secondary" id="btn-cancel-edit" style="flex: 1;">Cancel</button>
             <button type="submit" class="btn-primary" style="flex: 2;">Save Changes</button>

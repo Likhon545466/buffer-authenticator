@@ -73,7 +73,6 @@ const formExportBackup = document.getElementById('form-export-backup') as HTMLFo
 const exportPasswordInput = document.getElementById('export-password-input') as HTMLInputElement | null;
 
 const btnBiometricUnlock = document.getElementById('btn-biometric-unlock') as HTMLButtonElement | null;
-const categoryFiltersContainer = document.getElementById('category-filters') as HTMLDivElement | null;
 
 const btnScanTabQr = document.getElementById('btn-scan-tab-qr') as HTMLButtonElement | null;
 const dropzoneQr = document.getElementById('dropzone-qr') as HTMLDivElement | null;
@@ -91,7 +90,6 @@ let toastTimeout: ReturnType<typeof setTimeout> | null = null;
 let clipboardClearTimeout: ReturnType<typeof setTimeout> | null = null;
 let activeSecretValue = '';
 let activeMenuId: string | null = null;
-let currentCategory = 'all';
 
 /**
  * Send typed message to Service Worker
@@ -311,16 +309,7 @@ async function handleCopySecret(acc: PublicAccount) {
   }
 }
 
-/**
- * Toggle account pin status
- */
-async function handleTogglePin(acc: PublicAccount) {
-  const res = await sendMessage<{ isPinned: boolean }>({ type: 'TOGGLE_PIN', payload: { id: acc.id } });
-  if (res.success) {
-    showToast(acc.pinned ? 'Unpinned' : 'Pinned to top ⭐');
-    await loadAccounts();
-  }
-}
+
 
 /**
  * Delete account with confirmation
@@ -349,8 +338,6 @@ function openEditModal(acc: PublicAccount) {
   editSecret.value = '';
   editDigits.value = String(acc.digits || 6);
   editPeriod.value = String(acc.period || 30);
-  const editCat = document.getElementById('edit-category') as HTMLSelectElement | null;
-  if (editCat) editCat.value = acc.category || 'General';
   editIssuer.focus();
 }
 
@@ -417,16 +404,16 @@ function closeExportModal() {
 function renderAccounts() {
   const query = searchInput.value.toLowerCase().trim();
   const filtered = accounts.filter((acc) => {
-    const matchesQuery =
+    return (
       acc.issuer.toLowerCase().includes(query) ||
-      acc.account.toLowerCase().includes(query) ||
-      (acc.category && acc.category.toLowerCase().includes(query));
+      acc.account.toLowerCase().includes(query)
+    );
+  });
 
-    if (!matchesQuery) return false;
-
-    if (currentCategory === 'all') return true;
-    if (currentCategory === 'pinned') return !!acc.pinned;
-    return (acc.category || 'General').toLowerCase() === currentCategory.toLowerCase();
+  filtered.sort((a, b) => {
+    const issuerComp = (a.issuer || '').localeCompare(b.issuer || '', undefined, { sensitivity: 'base' });
+    if (issuerComp !== 0) return issuerComp;
+    return (a.account || '').localeCompare(b.account || '', undefined, { sensitivity: 'base' });
   });
 
   accountsContainer.innerHTML = '';
@@ -442,11 +429,6 @@ function renderAccounts() {
     card.className = 'account-card';
     card.setAttribute('data-id', acc.id);
 
-    const isPinned = !!acc.pinned;
-    if (isPinned) {
-      card.classList.add('is-pinned');
-    }
-
     const period = acc.period || 30;
     const remaining = Math.max(0, acc.secondsRemaining);
     const percent = Math.max(0, Math.min(100, (remaining / period) * 100));
@@ -458,25 +440,32 @@ function renderAccounts() {
       stateClass = 'warning';
     }
 
-
+    const isEmail = acc.account && acc.account.includes('@');
     const brand = getBrandInfo(acc.issuer || acc.account);
 
     card.innerHTML = `
       <div class="account-main">
-        <button type="button" class="btn-card-pin ${isPinned ? 'pinned' : ''}" data-pin-id="${acc.id}" title="${isPinned ? 'Unpin' : 'Pin to top'}" aria-label="Pin ${escapeHtml(acc.issuer || acc.account)}">
-          <svg viewBox="0 0 24 24" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" width="15" height="15">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-        </button>
         <div class="service-avatar" style="background: ${brand.bg}; color: ${brand.color};">
           ${brand.svg ? brand.svg : brand.label}
         </div>
         <div class="account-details">
-          <div class="issuer-name">
+          <div class="issuer-name" title="${escapeHtml(acc.issuer || 'Account')}">
             ${escapeHtml(acc.issuer || 'Account')}
-            ${acc.category && acc.category !== 'General' ? `<span style="font-size: 10px; opacity: 0.6; font-weight: normal; margin-left: 4px;">• ${escapeHtml(acc.category)}</span>` : ''}
           </div>
-          <div class="account-label" title="${escapeHtml(acc.account)}">${escapeHtml(acc.account)}</div>
+          <div class="account-label" title="${escapeHtml(acc.account)}">
+            ${isEmail ? `
+              <svg class="account-label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            ` : `
+              <svg class="account-label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            `}
+            <span class="account-email-text">${escapeHtml(acc.account)}</span>
+          </div>
         </div>
       </div>
       <div class="code-action-box">
@@ -501,12 +490,6 @@ function renderAccounts() {
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
               <span>Copy Code</span>
-            </button>
-            <button type="button" class="dropdown-item" data-action="toggle-pin">
-              <svg viewBox="0 0 24 24" fill="${isPinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" width="15" height="15">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-              </svg>
-              <span>${isPinned ? 'Unpin from Top' : 'Pin to Top'}</span>
             </button>
             <button type="button" class="dropdown-item" data-action="edit">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
@@ -550,17 +533,10 @@ function renderAccounts() {
       </div>
     `;
 
-    // Click pin button to toggle pin
-    const pinBtn = card.querySelector('.btn-card-pin') as HTMLButtonElement | null;
-    pinBtn?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await handleTogglePin(acc);
-    });
-
-    // Click card to copy code (unless clicking inside the 3-dot menu or pin button)
+    // Click card to copy code (unless clicking inside the 3-dot menu)
     card.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (target.closest('.account-menu-wrap') || target.closest('.btn-card-pin')) return;
+      if (target.closest('.account-menu-wrap')) return;
 
       copyAccountCode(acc, card);
     });
@@ -598,8 +574,6 @@ function renderAccounts() {
 
       if (action === 'copy') {
         copyAccountCode(acc, card);
-      } else if (action === 'toggle-pin') {
-        await handleTogglePin(acc);
       } else if (action === 'edit') {
         openEditModal(acc);
       } else if (action === 'copy-secret') {
@@ -837,15 +811,12 @@ formEditAccount.addEventListener('submit', async (e) => {
   const digits = parseInt(editDigits.value, 10);
   const period = parseInt(editPeriod.value, 10);
   const newSecret = editSecret.value.trim();
-  const category = (document.getElementById('edit-category') as HTMLSelectElement)?.value || 'General';
-
   const payload: any = {
     id,
     issuer,
     account,
     digits,
     period,
-    category,
   };
   if (newSecret) {
     payload.secret = newSecret;
@@ -983,18 +954,7 @@ document.querySelectorAll('.tab-btn').forEach((tab) => {
   });
 });
 
-// Category Filters Handler
-categoryFiltersContainer?.addEventListener('click', (e) => {
-  const pill = (e.target as HTMLElement).closest('.category-pill') as HTMLButtonElement | null;
-  if (!pill) return;
 
-  categoryFiltersContainer.querySelectorAll('.category-pill').forEach((p) => p.classList.remove('active'));
-  pill.classList.add('active');
-
-  currentCategory = pill.getAttribute('data-category') || 'all';
-  closeAllMenus();
-  renderAccounts();
-});
 
 // QR Code Scanner Handlers
 async function processQrImage(imageSource: HTMLImageElement | ImageBitmap | ImageData) {
@@ -1171,7 +1131,6 @@ formAddUri.addEventListener('submit', async (e) => {
   modalError.classList.add('hidden');
 
   const input = uriInput.value.trim();
-  const category = (document.getElementById('uri-category') as HTMLSelectElement)?.value || 'General';
   try {
     let payload;
     if (input.startsWith('otpauth://')) {
@@ -1184,7 +1143,6 @@ formAddUri.addEventListener('submit', async (e) => {
         digits: parsed.digits,
         period: parsed.period,
         type: parsed.type,
-        category,
       };
     } else {
       payload = {
@@ -1195,7 +1153,6 @@ formAddUri.addEventListener('submit', async (e) => {
         digits: 6,
         period: 30,
         type: 'totp' as const,
-        category,
       };
     }
 
@@ -1224,8 +1181,6 @@ formAddManual.addEventListener('submit', async (e) => {
   const secret = (document.getElementById('manual-secret') as HTMLInputElement).value.trim();
   const digits = parseInt((document.getElementById('manual-digits') as HTMLSelectElement).value, 10);
   const period = parseInt((document.getElementById('manual-period') as HTMLSelectElement).value, 10);
-  const category = (document.getElementById('manual-category') as HTMLSelectElement)?.value || 'General';
-
   const payload = {
     issuer,
     account,
@@ -1234,7 +1189,6 @@ formAddManual.addEventListener('submit', async (e) => {
     digits,
     period,
     type: 'totp' as const,
-    category,
   };
 
   const res = await sendMessage({ type: 'ADD_ACCOUNT', payload });
