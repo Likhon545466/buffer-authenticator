@@ -327,6 +327,7 @@ export class VaultManager {
         type: acc.type,
         pinned: !!acc.pinned,
         category: acc.category || 'General',
+        createdAt: acc.createdAt || 0,
       };
     });
 
@@ -424,6 +425,7 @@ export class VaultManager {
       type: newAccount.type,
       pinned: newAccount.pinned,
       category: newAccount.category,
+      createdAt: newAccount.createdAt,
     };
   }
 

@@ -45,6 +45,7 @@ export interface PublicAccount {
   type: OTPType;
   pinned?: boolean;
   category?: string;
+  createdAt?: number;
 }
 
 export interface VaultSettings {

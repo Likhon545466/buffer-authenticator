@@ -9,6 +9,7 @@
 
 import { formatOTPCode, parseOtpAuthUri } from '../crypto/totp';
 import { parseGoogleAuthMigration } from '../utils/backup-parser';
+import { sortAccounts, type SortMode } from '../utils/account-sort';
 import type { MessageRequest, MessageResponse, PublicAccount, VaultStatus } from '../types';
 
 // DOM Elements
@@ -31,6 +32,10 @@ const unlockError = document.getElementById('unlock-error') as HTMLDivElement;
 
 const searchInput = document.getElementById('search-input') as HTMLInputElement;
 const btnClearSearch = document.getElementById('btn-clear-search') as HTMLButtonElement | null;
+const btnSort = document.getElementById('btn-sort') as HTMLButtonElement | null;
+const sortCurrentIcon = document.getElementById('sort-current-icon') as HTMLSpanElement | null;
+const sortCurrentLabel = document.getElementById('sort-current-label') as HTMLSpanElement | null;
+const sortDropdownMenu = document.getElementById('sort-dropdown-menu') as HTMLDivElement | null;
 const btnAddAccount = document.getElementById('btn-add-account') as HTMLButtonElement;
 const accountsContainer = document.getElementById('accounts-container') as HTMLDivElement;
 const emptyState = document.getElementById('empty-state') as HTMLDivElement;
@@ -90,6 +95,7 @@ let toastTimeout: ReturnType<typeof setTimeout> | null = null;
 let clipboardClearTimeout: ReturnType<typeof setTimeout> | null = null;
 let activeSecretValue = '';
 let activeMenuId: string | null = null;
+let currentSortMode: SortMode = 'asc';
 
 /**
  * Send typed message to Service Worker
@@ -253,6 +259,116 @@ function getBrandInfo(issuerName: string): { bg: string; color: string; label: s
 }
 
 /**
+ * Update the sort button appearance and active state in the dropdown menu
+ */
+function updateSortButtonUI() {
+  if (sortCurrentLabel) {
+    if (currentSortMode === 'desc') {
+      sortCurrentLabel.textContent = 'Z–A';
+    } else if (currentSortMode === 'recent') {
+      sortCurrentLabel.textContent = 'Recent';
+    } else {
+      sortCurrentLabel.textContent = 'A–Z';
+    }
+  }
+
+  if (btnSort) {
+    if (currentSortMode === 'desc') {
+      btnSort.title = 'Sort accounts: Z to A (Descending)';
+    } else if (currentSortMode === 'recent') {
+      btnSort.title = 'Sort accounts: Recently Added';
+    } else {
+      btnSort.title = 'Sort accounts: A to Z (Ascending)';
+    }
+  }
+
+  if (sortCurrentIcon) {
+    if (currentSortMode === 'desc') {
+      sortCurrentIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M11 5h4"/>
+          <path d="M11 9h7"/>
+          <path d="M11 13h10"/>
+          <path d="M3 7l3-3 3 3"/>
+          <path d="M6 6v14"/>
+        </svg>
+      `;
+    } else if (currentSortMode === 'recent') {
+      sortCurrentIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      `;
+    } else {
+      sortCurrentIcon.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <path d="M11 5h10"/>
+          <path d="M11 9h7"/>
+          <path d="M11 13h4"/>
+          <path d="M3 17l3 3 3-3"/>
+          <path d="M6 18V4"/>
+        </svg>
+      `;
+    }
+  }
+
+  if (sortDropdownMenu) {
+    sortDropdownMenu.querySelectorAll('.sort-option').forEach((btn) => {
+      const mode = btn.getAttribute('data-sort');
+      if (mode === currentSortMode) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+}
+
+function openSortMenu() {
+  document.querySelectorAll('.account-dropdown-menu').forEach((m) => m.classList.add('hidden'));
+  document.querySelectorAll('.btn-card-menu').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.account-card').forEach((c) => c.classList.remove('menu-open'));
+  activeMenuId = null;
+
+  if (!sortDropdownMenu || !btnSort) return;
+  sortDropdownMenu.classList.remove('hidden');
+  btnSort.classList.add('active');
+  btnSort.setAttribute('aria-expanded', 'true');
+}
+
+function closeSortMenu() {
+  if (!sortDropdownMenu || !btnSort) return;
+  sortDropdownMenu.classList.add('hidden');
+  btnSort.classList.remove('active');
+  btnSort.setAttribute('aria-expanded', 'false');
+}
+
+function toggleSortMenu() {
+  if (sortDropdownMenu?.classList.contains('hidden')) {
+    openSortMenu();
+  } else {
+    closeSortMenu();
+  }
+}
+
+function setSortMode(mode: SortMode) {
+  currentSortMode = mode;
+  chrome.storage.local.set({ accountSortOrder: mode }).catch(() => {});
+  updateSortButtonUI();
+  closeSortMenu();
+  renderAccounts();
+
+  if (mode === 'asc') {
+    showToast('Sorted: Name (A → Z)');
+  } else if (mode === 'desc') {
+    showToast('Sorted: Name (Z → A)');
+  } else if (mode === 'recent') {
+    showToast('Sorted: Recently Added');
+  }
+}
+
+/**
  * Close all active card dropdown menus
  */
 function closeAllMenus() {
@@ -260,6 +376,7 @@ function closeAllMenus() {
   document.querySelectorAll('.btn-card-menu').forEach((b) => b.classList.remove('active'));
   document.querySelectorAll('.account-card').forEach((c) => c.classList.remove('menu-open'));
   activeMenuId = null;
+  closeSortMenu();
 }
 
 /**
@@ -410,21 +527,17 @@ function renderAccounts() {
     );
   });
 
-  filtered.sort((a, b) => {
-    const issuerComp = (a.issuer || '').localeCompare(b.issuer || '', undefined, { sensitivity: 'base' });
-    if (issuerComp !== 0) return issuerComp;
-    return (a.account || '').localeCompare(b.account || '', undefined, { sensitivity: 'base' });
-  });
+  const sorted = sortAccounts(filtered, currentSortMode);
 
   accountsContainer.innerHTML = '';
 
-  if (filtered.length === 0) {
+  if (sorted.length === 0) {
     emptyState.classList.remove('hidden');
     return;
   }
   emptyState.classList.add('hidden');
 
-  filtered.forEach((acc) => {
+  sorted.forEach((acc) => {
     const card = document.createElement('div');
     card.className = 'account-card';
     card.setAttribute('data-id', acc.id);
@@ -849,16 +962,42 @@ btnCopySecret.addEventListener('click', () => {
   }
 });
 
+// Sort Button and Dropdown Menu Event Handlers
+btnSort?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleSortMenu();
+});
+
+sortDropdownMenu?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const option = (e.target as HTMLElement).closest('.sort-option') as HTMLButtonElement | null;
+  if (!option) return;
+  const mode = option.getAttribute('data-sort') as SortMode | null;
+  if (mode) {
+    setSortMode(mode);
+  }
+});
+
 // Global outside-click and escape handlers
 document.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
   if (!target.closest('.account-menu-wrap')) {
-    closeAllMenus();
+    document.querySelectorAll('.account-dropdown-menu').forEach((m) => m.classList.add('hidden'));
+    document.querySelectorAll('.btn-card-menu').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.account-card').forEach((c) => c.classList.remove('menu-open'));
+    activeMenuId = null;
+  }
+  if (!target.closest('.sort-control-wrap')) {
+    closeSortMenu();
   }
 });
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    if (sortDropdownMenu && !sortDropdownMenu.classList.contains('hidden')) {
+      closeSortMenu();
+      return;
+    }
     if (activeMenuId) {
       closeAllMenus();
       return;
@@ -1235,6 +1374,14 @@ document.addEventListener('visibilitychange', () => {
     }
   } else {
     checkStatus();
+  }
+});
+
+// Restore saved sort order preference
+chrome.storage.local.get(['accountSortOrder'], (result) => {
+  if (result?.accountSortOrder === 'desc' || result?.accountSortOrder === 'recent' || result?.accountSortOrder === 'asc') {
+    currentSortMode = result.accountSortOrder;
+    updateSortButtonUI();
   }
 });
 

@@ -151,6 +151,83 @@
             </svg>
           </button>
         </div>
+        <div class="sort-control-wrap">
+          <button type="button" id="btn-sort" class="btn-sort" title="Sort accounts: A to Z" aria-label="Sort accounts" aria-expanded="false">
+            <span class="sort-icon-box" id="sort-current-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M11 5h10"/>
+                <path d="M11 9h7"/>
+                <path d="M11 13h4"/>
+                <path d="M3 17l3 3 3-3"/>
+                <path d="M6 18V4"/>
+              </svg>
+            </span>
+            <span id="sort-current-label" class="sort-label">A–Z</span>
+            <svg class="sort-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <div id="sort-dropdown-menu" class="sort-dropdown-menu hidden" role="menu">
+            <div class="sort-menu-header">Sort Accounts</div>
+            <button type="button" class="sort-option active" data-sort="asc" role="menuitem">
+              <div class="sort-option-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <path d="M11 5h10"/>
+                  <path d="M11 9h7"/>
+                  <path d="M11 13h4"/>
+                  <path d="M3 17l3 3 3-3"/>
+                  <path d="M6 18V4"/>
+                </svg>
+                <div class="sort-option-text">
+                  <span class="sort-option-title">Name (A → Z)</span>
+                  <span class="sort-option-desc">Ascending</span>
+                </div>
+              </div>
+              <svg class="sort-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+
+            <button type="button" class="sort-option" data-sort="desc" role="menuitem">
+              <div class="sort-option-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <path d="M11 5h4"/>
+                  <path d="M11 9h7"/>
+                  <path d="M11 13h10"/>
+                  <path d="M3 7l3-3 3 3"/>
+                  <path d="M6 6v14"/>
+                </svg>
+                <div class="sort-option-text">
+                  <span class="sort-option-title">Name (Z → A)</span>
+                  <span class="sort-option-desc">Descending</span>
+                </div>
+              </div>
+              <svg class="sort-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+
+            <div class="dropdown-divider"></div>
+
+            <button type="button" class="sort-option" data-sort="recent" role="menuitem">
+              <div class="sort-option-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <div class="sort-option-text">
+                  <span class="sort-option-title">Recently Added</span>
+                  <span class="sort-option-desc">Newest first</span>
+                </div>
+              </div>
+              <svg class="sort-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <button id="btn-add-account" class="btn-fab" title="Add new account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
             <line x1="12" y1="5" x2="12" y2="19"/>
