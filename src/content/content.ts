@@ -1,20 +1,25 @@
 /**
- * Content Script: Contextual Inline 2FA Autofill
+ * Content Script: Contextual In-Field 2FA Autofill & Live Code Popover
  *
  * Security & Functional Guarantees:
- * - Isolated from secrets: Content script NEVER receives secrets, only the current generated code.
- * - Uses Shadow DOM to isolate styles from the host page.
- * - Detects 2FA/OTP inputs via standard autocomplete attributes and heuristic signatures.
+ * - Isolated from secrets: Content script NEVER receives secrets, only public TOTP codes.
+ * - Uses Shadow DOM to isolate styles and prevent any host page CSS interference.
+ * - Native In-Field Icon: Docked cleanly inside the right edge of OTP fields (position: fixed)
+ *   so it NEVER distorts or breaks form layouts or vertical spacing in congested places.
+ * - Interactive Popover: Clicking the icon opens a tethered floating card showing the
+ *   specific matched account, live 6-digit code, and real-time countdown progress bar.
+ * - Supports multiple accounts per domain (e.g. multiple Google or GitHub accounts).
+ * - Multi-input OTP handling: Populates both single 6-digit inputs and segmented digit inputs.
  * - Dispatches standard DOM events ('input', 'change') for compatibility with SPA frameworks.
  */
 
-import type { MessageRequest, MessageResponse } from '../types';
+import type { MessageRequest, MessageResponse, DomainMatchResult, DomainAutofillAccount } from '../types';
 
-const CHIP_CONTAINER_CLASS = 'aegis-auth-chip-host';
-const PROCESSED_ATTR = 'data-aegis-detected';
+const HOST_CONTAINER_CLASS = 'buffer-auth-inline-host';
+const PROCESSED_ATTR = 'data-buffer-auth-detected';
 
 /**
- * Heuristic check if an input field is likely an OTP / 2FA field
+ * Heuristic check if an input field is an OTP / 2FA field
  */
 function isOtpField(el: HTMLInputElement): boolean {
   if (el.hasAttribute(PROCESSED_ATTR)) return false;
@@ -33,7 +38,7 @@ function isOtpField(el: HTMLInputElement): boolean {
   const placeholder = (el.placeholder || '').toLowerCase();
   const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
 
-  const keywords = ['otp', '2fa', 'mfa', 'totp', 'token', 'verification_code', 'security code', 'authenticator'];
+  const keywords = ['otp', '2fa', 'mfa', 'totp', 'token', 'verification_code', 'security code', 'authenticator', 'two-factor', 'two_factor'];
   const matched = keywords.some(
     (kw) => name.includes(kw) || id.includes(kw) || placeholder.includes(kw) || ariaLabel.includes(kw)
   );
@@ -49,179 +54,732 @@ function isOtpField(el: HTMLInputElement): boolean {
 }
 
 /**
- * Attach inline autofill chip next to the input
+ * Brand color/initial resolver for avatars
  */
-function attachAutofillChip(input: HTMLInputElement) {
+function getBrandInfo(name: string): { bg: string; color: string; label: string } {
+  const norm = (name || '').toLowerCase().trim();
+  if (norm.includes('google')) return { bg: '#1a2332', color: '#4285F4', label: 'G' };
+  if (norm.includes('github')) return { bg: '#24292e', color: '#ffffff', label: 'GH' };
+  if (norm.includes('microsoft')) return { bg: '#182538', color: '#00a4ef', label: 'MS' };
+  if (norm.includes('facebook') || norm.includes('meta')) return { bg: '#0c2e59', color: '#1877f2', label: 'FB' };
+  if (norm.includes('twitter') || norm.includes('x')) return { bg: '#1b222d', color: '#ffffff', label: 'X' };
+
+  let hash = 0;
+  for (let i = 0; i < norm.length; i++) {
+    hash = norm.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash % 360);
+  return {
+    bg: `hsl(${hue}, 40%, 18%)`,
+    color: `hsl(${hue}, 85%, 75%)`,
+    label: (name.slice(0, 2) || '2F').toUpperCase(),
+  };
+}
+
+/**
+ * Format OTP code with space separation (e.g. '714 281')
+ */
+function formatCode(code: string): string {
+  if (code.length === 6) {
+    return `${code.slice(0, 3)} ${code.slice(3)}`;
+  }
+  if (code.length === 8) {
+    return `${code.slice(0, 4)} ${code.slice(4)}`;
+  }
+  return code;
+}
+
+/**
+ * Safely fill OTP code into target input and dispatch native events
+ */
+function fillOtpIntoInput(input: HTMLInputElement, code: string) {
+  const cleanCode = code.replace(/\s+/g, '');
+
+  // Handle segmented inputs (e.g. 6 separate 1-digit boxes)
+  if (input.maxLength === 1) {
+    const parentForm = input.form || input.closest('form') || input.parentElement;
+    if (parentForm) {
+      const singleDigitInputs = Array.from(parentForm.querySelectorAll<HTMLInputElement>('input')).filter(
+        (i) => i.maxLength === 1 && (i.type === 'tel' || i.type === 'text' || i.type === 'number' || i.inputMode === 'numeric')
+      );
+      if (singleDigitInputs.length >= cleanCode.length) {
+        singleDigitInputs.forEach((inp, idx) => {
+          if (idx < cleanCode.length) {
+            inp.value = cleanCode[idx];
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+        const targetFocus = singleDigitInputs[Math.min(cleanCode.length - 1, singleDigitInputs.length - 1)];
+        targetFocus?.focus();
+        return;
+      }
+    }
+  }
+
+  // Standard input fill
+  input.value = cleanCode;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  input.focus();
+}
+
+/**
+ * Attach in-field icon and popover tethered to target OTP input
+ */
+function attachAutofillTrigger(input: HTMLInputElement) {
   input.setAttribute(PROCESSED_ATTR, 'true');
 
-  const wrapper = document.createElement('div');
-  wrapper.className = CHIP_CONTAINER_CLASS;
-  wrapper.style.display = 'inline-flex';
-  wrapper.style.position = 'relative';
-  wrapper.style.verticalAlign = 'middle';
-  wrapper.style.marginLeft = '8px';
-  wrapper.style.zIndex = '2147483640';
+  // Prevent input text from colliding with the icon badge
+  const computedStyle = window.getComputedStyle(input);
+  const currentPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
+  if (currentPaddingRight < 34) {
+    input.style.paddingRight = `${currentPaddingRight + 30}px`;
+  }
 
-  const shadow = wrapper.attachShadow({ mode: 'closed' });
+  // Create isolated container in document body
+  const host = document.createElement('div');
+  host.className = HOST_CONTAINER_CLASS;
+  host.style.position = 'fixed';
+  host.style.top = '0px';
+  host.style.left = '0px';
+  host.style.width = '0px';
+  host.style.height = '0px';
+  host.style.zIndex = '2147483646';
+  host.style.pointerEvents = 'none';
 
-  // Embedded isolated styles and chip markup
+  const shadow = host.attachShadow({ mode: 'open' });
+
   shadow.innerHTML = `
     <style>
-      .chip-btn {
-        display: inline-flex;
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* In-Field Shield App Icon Badge */
+      .badge-btn {
+        position: fixed;
+        width: 24px;
+        height: 24px;
+        background: #111318;
+        border: 1px solid rgba(168, 199, 250, 0.35);
+        border-radius: 6px;
+        color: #a8c7fa;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        background: linear-gradient(135deg, #1e293b, #0f172a);
-        color: #38bdf8;
-        border: 1px solid rgba(56, 189, 248, 0.4);
-        border-radius: 9999px;
-        padding: 5px 12px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        font-size: 12px;
-        font-weight: 600;
+        justify-content: center;
         cursor: pointer;
+        pointer-events: auto;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+        transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
         user-select: none;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 2147483646;
       }
-      .chip-btn:hover {
-        background: linear-gradient(135deg, #0284c7, #0369a1);
+      .badge-btn:hover {
+        background: #1e222a;
+        border-color: #a8c7fa;
         color: #ffffff;
-        border-color: #38bdf8;
-        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
-        transform: translateY(-1px);
+        transform: scale(1.08);
+        box-shadow: 0 0 10px rgba(168, 199, 250, 0.45);
       }
-      .chip-btn:active {
-        transform: translateY(0);
+      .badge-btn:active {
+        transform: scale(0.96);
       }
-      .icon {
+      .badge-btn.active {
+        background: #0842a0;
+        border-color: #a8c7fa;
+        color: #ffffff;
+      }
+      .shield-icon {
         width: 14px;
         height: 14px;
-        fill: currentColor;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
       }
-      .chip-tooltip {
-        position: absolute;
-        bottom: calc(100% + 6px);
-        left: 50%;
-        transform: translateX(-50%);
-        background: #0f172a;
-        color: #f8fafc;
-        border: 1px solid #334155;
-        border-radius: 6px;
-        padding: 4px 8px;
-        font-size: 11px;
-        white-space: nowrap;
+
+      /* Interactive 2FA Live Card Popover */
+      .autofill-popover {
+        position: fixed;
+        width: 320px;
+        background: #171a21;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(20px);
+        color: #e2e2e9;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        padding: 12px;
+        pointer-events: auto;
+        z-index: 2147483647;
         opacity: 0;
+        transform: translateY(-6px) scale(0.97);
         pointer-events: none;
-        transition: opacity 0.2s;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
       }
-      .chip-tooltip.show {
+      .autofill-popover.open {
         opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
       }
-      .success {
-        background: #10b981 !important;
+
+      /* Popover Header */
+      .popover-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 10px;
+      }
+      .popover-title-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .popover-brand {
+        font-size: 12px;
+        font-weight: 700;
+        color: #a8c7fa;
+        letter-spacing: 0.2px;
+      }
+      .popover-domain {
+        font-size: 10px;
+        color: #9aa0a6;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 2px 6px;
+        border-radius: 4px;
+        max-width: 140px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .btn-close-popover {
+        background: transparent;
+        border: none;
+        color: #9aa0a6;
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s ease;
+      }
+      .btn-close-popover:hover {
+        color: #ffffff;
+      }
+
+      /* Accounts List */
+      .accounts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+      .account-card {
+        background: #20242e;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 10px 12px;
+        transition: all 0.15s ease;
+      }
+      .account-card:hover {
+        border-color: rgba(168, 199, 250, 0.35);
+        background: #252a36;
+      }
+
+      .card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .card-avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .card-info {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .card-issuer {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ffffff;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card-account {
+        font-size: 10.5px;
+        color: #9aa0a6;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .card-middle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .card-code {
+        font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+        font-size: 19px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: #a8c7fa;
+      }
+      .btn-fill-action {
+        background: #0842a0;
+        color: #d3e3fd;
+        border: none;
+        border-radius: 6px;
+        padding: 5px 12px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s ease;
+      }
+      .btn-fill-action:hover {
+        background: #0c4fa0;
+        color: #ffffff;
+        transform: translateY(-1px);
+      }
+      .btn-fill-action:active {
+        transform: translateY(0);
+      }
+      .btn-fill-action.filled {
+        background: #137333 !important;
         color: #ffffff !important;
-        border-color: #059669 !important;
+      }
+
+      /* Progress Bar & Countdown Timer */
+      .card-timer-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .timer-track {
+        flex: 1;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 9999px;
+        overflow: hidden;
+      }
+      .timer-fill {
+        height: 100%;
+        background: #a8c7fa;
+        border-radius: 9999px;
+        transition: width 0.3s linear, background-color 0.3s ease;
+      }
+      .timer-fill.warning {
+        background: #ffb951;
+      }
+      .timer-fill.danger {
+        background: #ffb4ab;
+      }
+      .timer-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: #9aa0a6;
+        min-width: 22px;
+        text-align: right;
+      }
+
+      /* Locked or Empty State */
+      .empty-box {
+        text-align: center;
+        padding: 16px 8px;
+        color: #9aa0a6;
+        font-size: 11.5px;
+        line-height: 1.4;
+      }
+      .empty-box svg {
+        margin-bottom: 6px;
+        color: #a8c7fa;
       }
     </style>
-    <div style="position: relative;">
-      <button type="button" class="chip-btn" id="autofill-btn" title="Fill 2FA code with Buffer Authenticator">
-        <svg class="icon" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-        </svg>
-        <span id="label-text">Fill 2FA</span>
-      </button>
-      <div class="chip-tooltip" id="tooltip"></div>
+
+    <button type="button" class="badge-btn" id="badge-trigger" title="Buffer Authenticator (Click to view live 2FA code)">
+      <svg class="shield-icon" viewBox="0 0 24 24">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </button>
+
+    <div class="autofill-popover" id="popover-panel">
+      <div class="popover-header">
+        <div class="popover-title-row">
+          <svg class="shield-icon" style="width: 13px; height: 13px; color: #a8c7fa;" viewBox="0 0 24 24">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span class="popover-brand">Buffer Authenticator</span>
+          <span class="popover-domain" id="domain-label"></span>
+        </div>
+        <button type="button" class="btn-close-popover" id="btn-close" title="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="accounts-list" id="accounts-list-container">
+        <!-- Rendered dynamically -->
+      </div>
     </div>
   `;
 
-  const btn = shadow.getElementById('autofill-btn') as HTMLButtonElement;
-  const labelText = shadow.getElementById('label-text') as HTMLSpanElement;
-  const tooltip = shadow.getElementById('tooltip') as HTMLDivElement;
+  document.body.appendChild(host);
 
-  function showMessage(msg: string, duration = 2500) {
-    tooltip.textContent = msg;
-    tooltip.classList.add('show');
-    setTimeout(() => {
-      tooltip.classList.remove('show');
-    }, duration);
+  const badgeBtn = shadow.getElementById('badge-trigger') as HTMLButtonElement;
+  const popover = shadow.getElementById('popover-panel') as HTMLDivElement;
+  const domainLabel = shadow.getElementById('domain-label') as HTMLSpanElement;
+  const accountsContainer = shadow.getElementById('accounts-list-container') as HTMLDivElement;
+  const btnClose = shadow.getElementById('btn-close') as HTMLButtonElement;
+
+  domainLabel.textContent = window.location.hostname;
+
+  let currentAccounts: DomainAutofillAccount[] = [];
+  let tickerTimer: ReturnType<typeof setInterval> | null = null;
+  let isPopoverOpen = false;
+
+  /**
+   * Position the in-field badge at the right edge of the input
+   */
+  function updateBadgePosition() {
+    if (!document.contains(input)) {
+      host.remove();
+      return;
+    }
+
+    const rect = input.getBoundingClientRect();
+    const style = window.getComputedStyle(input);
+    if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden') {
+      badgeBtn.style.display = 'none';
+      if (isPopoverOpen) closePopover();
+      return;
+    }
+
+    badgeBtn.style.display = 'flex';
+    const badgeSize = 24;
+    const top = Math.round(rect.top + (rect.height - badgeSize) / 2);
+    const left = Math.round(rect.right - badgeSize - 6);
+
+    badgeBtn.style.top = `${top}px`;
+    badgeBtn.style.left = `${left}px`;
+
+    if (isPopoverOpen) {
+      updatePopoverPosition(rect);
+    }
   }
 
-  btn.addEventListener('click', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  /**
+   * Position the popover tethered below (or flipped above) the input
+   */
+  function updatePopoverPosition(inputRect?: DOMRect) {
+    const rect = inputRect || input.getBoundingClientRect();
+    const popoverWidth = 320;
+    const popoverHeight = popover.offsetHeight || 160;
 
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 12));
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    if (spaceBelow >= popoverHeight + 10 || rect.top < popoverHeight + 10) {
+      popover.style.top = `${Math.round(rect.bottom + 6)}px`;
+    } else {
+      popover.style.top = `${Math.round(rect.top - popoverHeight - 6)}px`;
+    }
+    popover.style.left = `${Math.round(left)}px`;
+  }
+
+  /**
+   * Render accounts list with live TOTP code & progress bar
+   */
+  function renderPopoverAccounts() {
+    accountsContainer.innerHTML = '';
+
+    if (currentAccounts.length === 0) {
+      accountsContainer.innerHTML = `
+        <div class="empty-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <p>No 2FA account found for <strong>${window.location.hostname}</strong></p>
+        </div>
+      `;
+      return;
+    }
+
+    currentAccounts.forEach((acc) => {
+      const card = document.createElement('div');
+      card.className = 'account-card';
+      card.setAttribute('data-id', acc.id);
+
+      const brand = getBrandInfo(acc.issuer || acc.account);
+      const period = acc.period || 30;
+      const remaining = Math.max(0, acc.secondsRemaining);
+      const percent = Math.max(0, Math.min(100, (remaining / period) * 100));
+
+      let stateClass = '';
+      if (remaining <= 5) stateClass = 'danger';
+      else if (remaining <= 10) stateClass = 'warning';
+
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="card-avatar" style="background: ${brand.bg}; color: ${brand.color};">
+            ${brand.label}
+          </div>
+          <div class="card-info">
+            <span class="card-issuer" title="${acc.issuer || 'Account'}">${acc.issuer || 'Account'}</span>
+            <span class="card-account" title="${acc.account}">${acc.account}</span>
+          </div>
+        </div>
+
+        <div class="card-middle">
+          <span class="card-code" data-code="${acc.code}">${formatCode(acc.code)}</span>
+          <button type="button" class="btn-fill-action" data-fill="${acc.code}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Fill Code</span>
+          </button>
+        </div>
+
+        <div class="card-timer-row">
+          <div class="timer-track">
+            <div class="timer-fill ${stateClass}" style="width: ${percent}%;"></div>
+          </div>
+          <span class="timer-label">${remaining}s</span>
+        </div>
+      `;
+
+      // Fill button handler
+      const fillBtn = card.querySelector('.btn-fill-action') as HTMLButtonElement;
+      const handleFill = (e: Event) => {
+        e.stopPropagation();
+        fillOtpIntoInput(input, acc.code);
+        fillBtn.classList.add('filled');
+        fillBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Filled!</span>
+        `;
+        setTimeout(() => {
+          closePopover();
+        }, 400);
+      };
+
+      fillBtn.addEventListener('click', handleFill);
+      card.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('.btn-fill-action')) return;
+        handleFill(e);
+      });
+
+      accountsContainer.appendChild(card);
+    });
+  }
+
+  /**
+   * Update timer bars in real time without tearing down cards
+   */
+  function updateLiveTimers() {
+    currentAccounts.forEach((acc) => {
+      const card = accountsContainer.querySelector(`.account-card[data-id="${acc.id}"]`);
+      if (!card) return;
+
+      const period = acc.period || 30;
+      const remaining = Math.max(0, acc.secondsRemaining);
+      const percent = Math.max(0, Math.min(100, (remaining / period) * 100));
+
+      const fillEl = card.querySelector('.timer-fill') as HTMLElement | null;
+      const labelEl = card.querySelector('.timer-label') as HTMLElement | null;
+      const codeEl = card.querySelector('.card-code') as HTMLElement | null;
+
+      if (fillEl) {
+        fillEl.style.width = `${percent}%`;
+        fillEl.className = 'timer-fill';
+        if (remaining <= 5) fillEl.classList.add('danger');
+        else if (remaining <= 10) fillEl.classList.add('warning');
+      }
+
+      if (labelEl) {
+        labelEl.textContent = `${remaining}s`;
+      }
+
+      if (codeEl) {
+        codeEl.textContent = formatCode(acc.code);
+      }
+    });
+  }
+
+  /**
+   * Fetch matching 2FA accounts from background service worker
+   */
+  async function fetchDomainAccounts(): Promise<boolean> {
     try {
       const msg: MessageRequest = {
         type: 'GET_CODE_FOR_DOMAIN',
         payload: { domain: window.location.hostname },
       };
-
-      const response: MessageResponse<{ code: string; issuer: string; account: string } | null> =
-        await chrome.runtime.sendMessage(msg);
-
-      if (!response || !response.success) {
-        showMessage(response?.error || 'Vault locked. Open Buffer Authenticator to unlock.');
-        return;
+      const res: MessageResponse<DomainMatchResult | null> = await chrome.runtime.sendMessage(msg);
+      if (res && res.success && res.data) {
+        // If exact matches exist, display them; otherwise fallback to other vault accounts
+        if (res.data.matched && res.data.matched.length > 0) {
+          currentAccounts = res.data.matched;
+        } else if (res.data.all && res.data.all.length > 0) {
+          currentAccounts = res.data.all;
+        } else {
+          currentAccounts = [];
+        }
+        return true;
+      } else {
+        currentAccounts = [];
+        return false;
       }
-
-      const match = response.data;
-      if (!match || !match.code) {
-        showMessage(`No 2FA account found for ${window.location.hostname}`);
-        return;
-      }
-
-      // Populate input value safely
-      input.value = match.code;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-
-      // Visual feedback
-      btn.classList.add('success');
-      labelText.textContent = 'Filled!';
-      setTimeout(() => {
-        btn.classList.remove('success');
-        labelText.textContent = 'Fill 2FA';
-      }, 2000);
     } catch {
-      showMessage('Please unlock Buffer Authenticator');
+      currentAccounts = [];
+      return false;
+    }
+  }
+
+  /**
+   * Open the popover and start the live countdown ticker
+   */
+  async function openPopover() {
+    isPopoverOpen = true;
+    badgeBtn.classList.add('active');
+
+    accountsContainer.innerHTML = `
+      <div class="empty-box">
+        <p>Loading live 2FA code...</p>
+      </div>
+    `;
+
+    popover.classList.add('open');
+    updatePopoverPosition();
+
+    await fetchDomainAccounts();
+    renderPopoverAccounts();
+    updatePopoverPosition();
+
+    if (tickerTimer) clearInterval(tickerTimer);
+    tickerTimer = setInterval(async () => {
+      let needsRefresh = false;
+      currentAccounts.forEach((acc) => {
+        acc.secondsRemaining -= 1;
+        if (acc.secondsRemaining <= 0) {
+          needsRefresh = true;
+        }
+      });
+
+      if (needsRefresh) {
+        await fetchDomainAccounts();
+        renderPopoverAccounts();
+      } else {
+        updateLiveTimers();
+      }
+    }, 1000);
+  }
+
+  /**
+   * Close the popover and clear ticker
+   */
+  function closePopover() {
+    isPopoverOpen = false;
+    badgeBtn.classList.remove('active');
+    popover.classList.remove('open');
+    if (tickerTimer) {
+      clearInterval(tickerTimer);
+      tickerTimer = null;
+    }
+  }
+
+  // Event Listeners
+  badgeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isPopoverOpen) {
+      closePopover();
+    } else {
+      openPopover();
     }
   });
 
-  // Insert wrapper after input
-  if (input.parentNode) {
-    if (input.nextSibling) {
-      input.parentNode.insertBefore(wrapper, input.nextSibling);
-    } else {
-      input.parentNode.appendChild(wrapper);
+  btnClose.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closePopover();
+  });
+
+  // Global dismiss on click outside or Escape
+  document.addEventListener('click', (e) => {
+    if (!isPopoverOpen) return;
+    const target = e.target as HTMLElement;
+    if (target !== input && !host.contains(target)) {
+      closePopover();
     }
-  }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isPopoverOpen) {
+      closePopover();
+    }
+  });
+
+  // Update positions on window scroll or resize
+  window.addEventListener('scroll', updateBadgePosition, { passive: true, capture: true });
+  window.addEventListener('resize', updateBadgePosition, { passive: true });
+
+  const resizeObserver = new ResizeObserver(() => {
+    updateBadgePosition();
+  });
+  resizeObserver.observe(input);
+
+  input.addEventListener('focus', updateBadgePosition);
+  input.addEventListener('input', updateBadgePosition);
+
+  // Initial positioning
+  updateBadgePosition();
 }
 
 /**
- * Fast targeted scan for OTP input fields within a specific root element
+ * Scan document for OTP input fields
  */
 const OTP_TARGETED_SELECTOR =
   'input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="2fa" i], input[name*="mfa" i], input[name*="code" i], input[id*="otp" i], input[id*="2fa" i], input[id*="code" i], input[placeholder*="code" i], input[type="tel"], input[type="number"]';
 
 function scanForOtpFields(root: ParentNode = document) {
-  // Fast path: query targeted candidates first
   const candidates = root.querySelectorAll<HTMLInputElement>(OTP_TARGETED_SELECTOR);
   candidates.forEach((input) => {
     if (isOtpField(input)) {
-      attachAutofillChip(input);
+      attachAutofillTrigger(input);
     }
   });
 
-  // Secondary sweep only on small subtrees or initial page load
   if (root === document) {
     const allInputs = document.querySelectorAll<HTMLInputElement>('input');
-    // Only check if document hasn't an overwhelming number of inputs
-    if (allInputs.length < 50) {
+    if (allInputs.length < 60) {
       allInputs.forEach((input) => {
         if (isOtpField(input)) {
-          attachAutofillChip(input);
+          attachAutofillTrigger(input);
         }
       });
     }
@@ -231,7 +789,7 @@ function scanForOtpFields(root: ParentNode = document) {
 // Initial scan
 scanForOtpFields();
 
-// Lightweight incremental MutationObserver (only checks added nodes)
+// Lightweight incremental MutationObserver
 const observer = new MutationObserver((mutations) => {
   for (let m = 0; m < mutations.length; m++) {
     const added = mutations[m].addedNodes;
@@ -240,7 +798,7 @@ const observer = new MutationObserver((mutations) => {
       if (node.nodeType === 1) {
         const el = node as Element;
         if (el.tagName === 'INPUT' && isOtpField(el as HTMLInputElement)) {
-          attachAutofillChip(el as HTMLInputElement);
+          attachAutofillTrigger(el as HTMLInputElement);
         } else if (el.firstElementChild) {
           scanForOtpFields(el);
         }
@@ -258,7 +816,6 @@ function startObserver() {
 
 startObserver();
 
-// Disconnect observer on hidden tabs to save CPU and RAM across background tabs
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     observer.disconnect();

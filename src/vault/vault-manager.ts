@@ -28,6 +28,8 @@ import type {
   TOTPAccount,
   VaultSettings,
   VaultStatus,
+  DomainAutofillAccount,
+  DomainMatchResult,
 } from '../types';
 
 export interface StorageAreaLike {
@@ -490,9 +492,75 @@ export class VaultManager {
   }
 
   /**
+   * Common service aliases for accurate website-to-issuer matching
+   */
+  private static readonly DOMAIN_ALIASES: Record<string, string[]> = {
+    github: ['github', 'gh'],
+    google: ['google', 'gmail', 'gsuite', 'youtube', 'alphabet'],
+    facebook: ['facebook', 'meta', 'fb', 'instagram', 'whatsapp'],
+    instagram: ['instagram', 'meta', 'facebook'],
+    microsoft: ['microsoft', 'live', 'outlook', 'office', 'ms', 'xbox', 'azure'],
+    twitter: ['twitter', 'x'],
+    x: ['twitter', 'x'],
+    amazon: ['amazon', 'aws'],
+    apple: ['apple', 'icloud'],
+    binance: ['binance'],
+    discord: ['discord'],
+    dropbox: ['dropbox'],
+    gitlab: ['gitlab'],
+    bitbucket: ['bitbucket', 'atlassian'],
+    steam: ['steam', 'valvesoftware'],
+    reddit: ['reddit'],
+    twitch: ['twitch'],
+    paypal: ['paypal'],
+    uber: ['uber'],
+    linkedin: ['linkedin'],
+    slack: ['slack'],
+    zoom: ['zoom'],
+    proton: ['proton', 'protonmail'],
+  };
+
+  /**
+   * Score an account against a host domain.
+   * Prevents false positives (e.g. empty strings, single letters)
+   */
+  scoreAccountForDomain(acc: Pick<TOTPAccount, 'issuer' | 'account'>, domain: string): number {
+    if (!domain) return 0;
+    const clean = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].split(':')[0];
+    const parts = clean.split('.');
+
+    let baseDomain = parts[0];
+    if (parts.length >= 3 && ['accounts', 'login', 'auth', 'signin', 'id', 'm', 'secure', 'my'].includes(parts[0])) {
+      baseDomain = parts[1];
+    }
+    const cleanDomain = parts.slice(-2).join('.');
+
+    const issuer = (acc.issuer || '').toLowerCase().trim();
+    const account = (acc.account || '').toLowerCase().trim();
+    const aliases = VaultManager.DOMAIN_ALIASES[baseDomain] || [baseDomain];
+
+    if (!issuer && !account) return 0;
+
+    // 1. Exact issuer matches (Highest priority)
+    if (issuer === baseDomain) return 100;
+    if (aliases.includes(issuer)) return 95;
+    if (issuer.length >= 3 && issuer === cleanDomain) return 90;
+
+    // 2. Contains matching with length guard (prevent empty string / short match bugs)
+    if (issuer.length >= 3 && issuer.includes(baseDomain)) return 80;
+    if (issuer.length >= 3 && baseDomain.includes(issuer)) return 75;
+    if (aliases.some((a) => a.length >= 3 && issuer.includes(a))) return 70;
+
+    // 3. Account label contains base domain (e.g. likhon@github.com)
+    if (account.length >= 4 && account.includes(baseDomain)) return 40;
+
+    return 0;
+  }
+
+  /**
    * Lookup code matching domain or issuer for inline autofill
    */
-  async getCodeForDomain(domain: string): Promise<{ code: string; issuer: string; account: string } | null> {
+  async getCodeForDomain(domain: string): Promise<DomainMatchResult | null> {
     if (await this.isLocked()) {
       return null;
     }
@@ -500,30 +568,41 @@ export class VaultManager {
       return null;
     }
 
-    const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-    const domainRoot = cleanDomain.split('.')[0]; // e.g. 'github' from 'github.com'
-
-    // Look for match in issuer or account
-    const match = this.vaultData.accounts.find((acc) => {
-      const issuer = acc.issuer.toLowerCase();
-      const account = acc.account.toLowerCase();
-      return (
-        issuer.includes(cleanDomain) ||
-        issuer.includes(domainRoot) ||
-        cleanDomain.includes(issuer) ||
-        account.includes(cleanDomain)
-      );
+    const now = Date.now();
+    const scoredAccounts = this.vaultData.accounts.map((acc) => {
+      const score = this.scoreAccountForDomain(acc, domain);
+      const { code, nextCode, secondsRemaining } = generateTOTPCode(acc, now);
+      const account: DomainAutofillAccount = {
+        id: acc.id,
+        issuer: acc.issuer,
+        account: acc.account,
+        code,
+        nextCode,
+        secondsRemaining,
+        period: acc.period || 30,
+        digits: acc.digits || 6,
+      };
+      return { account, score };
     });
 
-    if (!match) {
+    const matched = scoredAccounts
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((s) => s.account);
+
+    const all = scoredAccounts.map((s) => s.account);
+
+    if (matched.length === 0) {
       return null;
     }
 
-    const { code } = generateTOTPCode(match);
+    const primary = matched[0];
     return {
-      code,
-      issuer: match.issuer,
-      account: match.account,
+      code: primary.code,
+      issuer: primary.issuer,
+      account: primary.account,
+      matched,
+      all,
     };
   }
 

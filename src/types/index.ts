@@ -63,6 +63,25 @@ export interface VaultStatus {
   settings: VaultSettings;
 }
 
+export interface DomainAutofillAccount {
+  id: string;
+  issuer: string;
+  account: string;
+  code: string;
+  nextCode?: string;
+  secondsRemaining: number;
+  period: number;
+  digits: number;
+}
+
+export interface DomainMatchResult {
+  code: string;
+  issuer: string;
+  account: string;
+  matched: DomainAutofillAccount[];
+  all: DomainAutofillAccount[];
+}
+
 export type MessageRequest =
   | { type: 'GET_STATUS' }
   | { type: 'INIT_VAULT'; payload: { password: string } }

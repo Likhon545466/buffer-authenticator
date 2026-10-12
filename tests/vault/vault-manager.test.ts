@@ -185,12 +185,12 @@ describe('VaultManager', () => {
     await expect(vaultManager.getAccount(added.id)).rejects.toThrow('Vault is locked');
   });
 
-  it('matches domain for inline autofill', async () => {
+  it('matches domain for inline autofill with precise ranking and multi-account support', async () => {
     await vaultManager.initVault(masterPassword);
 
     await vaultManager.addAccount({
-      issuer: 'Google',
-      account: 'user@gmail.com',
+      issuer: '1xbet/1713633405',
+      account: '1713633405',
       secret: 'JBSWY3DPEHPK3PXP',
       algorithm: 'SHA1',
       digits: 6,
@@ -198,13 +198,54 @@ describe('VaultManager', () => {
       type: 'totp',
     });
 
-    const match1 = await vaultManager.getCodeForDomain('accounts.google.com');
-    expect(match1).not.toBeNull();
-    expect(match1?.issuer).toBe('Google');
-    expect(match1?.code).toMatch(/^\d{6}$/);
+    await vaultManager.addAccount({
+      issuer: 'GitHub',
+      account: 'Likhon545466',
+      secret: 'JBSWY3DPEHPK3PXP',
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      type: 'totp',
+    });
 
-    const match2 = await vaultManager.getCodeForDomain('randomwebsite.org');
-    expect(match2).toBeNull();
+    await vaultManager.addAccount({
+      issuer: 'Google',
+      account: 'user1@gmail.com',
+      secret: 'JBSWY3DPEHPK3PXP',
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      type: 'totp',
+    });
+
+    await vaultManager.addAccount({
+      issuer: 'Google',
+      account: 'user2@gmail.com',
+      secret: 'JBSWY3DPEHPK3PXP',
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      type: 'totp',
+    });
+
+    // 1. Precise GitHub match (does NOT accidentally match 1xbet or Google)
+    const githubMatch = await vaultManager.getCodeForDomain('github.com');
+    expect(githubMatch).not.toBeNull();
+    expect(githubMatch?.issuer).toBe('GitHub');
+    expect(githubMatch?.account).toBe('Likhon545466');
+    expect(githubMatch?.matched.length).toBe(1);
+    expect(githubMatch?.code).toMatch(/^\d{6}$/);
+
+    // 2. Google multi-account match on accounts.google.com
+    const googleMatch = await vaultManager.getCodeForDomain('accounts.google.com');
+    expect(googleMatch).not.toBeNull();
+    expect(googleMatch?.issuer).toBe('Google');
+    expect(googleMatch?.matched.length).toBe(2);
+    expect(googleMatch?.matched.map((m) => m.account)).toEqual(['user1@gmail.com', 'user2@gmail.com']);
+
+    // 3. Unmatched domain
+    const unmatched = await vaultManager.getCodeForDomain('randomwebsite.org');
+    expect(unmatched).toBeNull();
   });
 
   it('changes master password and re-encrypts vault with new salt', async () => {
