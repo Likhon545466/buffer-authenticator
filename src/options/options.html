@@ -206,16 +206,18 @@
             <span class="badge">2FAS JSON</span>
             <span class="badge">Plaintext TXT</span>
             <span class="badge">otpauth://</span>
+            <span class="badge">QR Code Image</span>
           </div>
 
           <div class="import-type-selector">
-            <button type="button" id="tab-import-file" class="type-pill active">File Upload (.json / .txt)</button>
+            <button type="button" id="tab-import-file" class="type-pill active">Backup File (.json / .txt)</button>
+            <button type="button" id="tab-import-qr" class="type-pill">Scan QR Code Image</button>
             <button type="button" id="tab-import-text" class="type-pill">Paste Text / URIs</button>
           </div>
 
           <!-- File Upload Zone -->
           <div id="pane-import-file" class="upload-zone">
-            <input type="file" id="file-import" accept=".json,.txt,text/plain,application/json">
+            <input type="file" id="file-import" accept=".json,.txt,.png,.jpg,.jpeg,.webp,text/plain,application/json,image/*">
             <div id="upload-prompt" class="upload-zone-content">
               <div class="upload-icon-circle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
@@ -223,7 +225,7 @@
                 </svg>
               </div>
               <p><strong>Click to browse</strong> or drag and drop your backup file</p>
-              <span class="upload-hint">Supports Aegis mobile export or plain text</span>
+              <span class="upload-hint">Supports Aegis, Bitwarden, 2FAS, plain text, or QR images</span>
             </div>
 
             <!-- Dynamic Selected File Badge -->
@@ -239,6 +241,40 @@
                 <span id="file-size-display" class="file-size">0 KB</span>
               </div>
               <button type="button" id="btn-remove-file" class="btn-clear-file" title="Change file">✕</button>
+            </div>
+          </div>
+
+          <!-- QR Code Image Upload Zone -->
+          <div id="pane-import-qr" class="upload-zone hidden">
+            <input type="file" id="file-import-qr" accept="image/*,.png,.jpg,.jpeg,.webp">
+            <div id="upload-prompt-qr" class="upload-zone-content">
+              <div class="upload-icon-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+              </div>
+              <p><strong>Click to browse</strong> or drag & drop a QR code image</p>
+              <span class="upload-hint">Supports PNG, JPG, JPEG, or WebP screenshot files</span>
+            </div>
+
+            <!-- Dynamic Selected QR File Badge -->
+            <div id="qr-info-badge" class="file-badge hidden">
+              <div class="file-badge-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+              </div>
+              <div class="file-badge-text">
+                <span id="qr-file-name-display" class="file-name">qrcode.png</span>
+                <span id="qr-file-size-display" class="file-size">0 KB</span>
+              </div>
+              <button type="button" id="btn-remove-qr-file" class="btn-clear-file" title="Change file">✕</button>
             </div>
           </div>
 

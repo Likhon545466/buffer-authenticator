@@ -81,19 +81,40 @@ btnModeExport?.addEventListener('click', () => {
   panelImport?.classList.add('hidden');
 });
 
-// Import Type Toggle (File Upload vs Paste Text)
+// Import Type Toggle (File Upload vs Scan QR vs Paste Text)
 const tabImportFile = document.getElementById('tab-import-file') as HTMLButtonElement;
+const tabImportQr = document.getElementById('tab-import-qr') as HTMLButtonElement | null;
 const tabImportText = document.getElementById('tab-import-text') as HTMLButtonElement;
 const paneImportFile = document.getElementById('pane-import-file') as HTMLDivElement;
+const paneImportQr = document.getElementById('pane-import-qr') as HTMLDivElement | null;
 const paneImportText = document.getElementById('pane-import-text') as HTMLDivElement;
 
-let activeImportMode: 'file' | 'text' = 'file';
+const fileImportQr = document.getElementById('file-import-qr') as HTMLInputElement | null;
+const uploadPromptQr = document.getElementById('upload-prompt-qr') as HTMLDivElement | null;
+const qrInfoBadge = document.getElementById('qr-info-badge') as HTMLDivElement | null;
+const qrFileNameDisplay = document.getElementById('qr-file-name-display') as HTMLSpanElement | null;
+const qrFileSizeDisplay = document.getElementById('qr-file-size-display') as HTMLSpanElement | null;
+const btnRemoveQrFile = document.getElementById('btn-remove-qr-file') as HTMLButtonElement | null;
+
+let activeImportMode: 'file' | 'qr' | 'text' = 'file';
 
 tabImportFile?.addEventListener('click', () => {
   activeImportMode = 'file';
   tabImportFile.classList.add('active');
+  tabImportQr?.classList.remove('active');
   tabImportText?.classList.remove('active');
   paneImportFile?.classList.remove('hidden');
+  paneImportQr?.classList.add('hidden');
+  paneImportText?.classList.add('hidden');
+});
+
+tabImportQr?.addEventListener('click', () => {
+  activeImportMode = 'qr';
+  tabImportQr?.classList.add('active');
+  tabImportFile?.classList.remove('active');
+  tabImportText?.classList.remove('active');
+  paneImportQr?.classList.remove('hidden');
+  paneImportFile?.classList.add('hidden');
   paneImportText?.classList.add('hidden');
 });
 
@@ -101,8 +122,10 @@ tabImportText?.addEventListener('click', () => {
   activeImportMode = 'text';
   tabImportText.classList.add('active');
   tabImportFile?.classList.remove('active');
+  tabImportQr?.classList.remove('active');
   paneImportText?.classList.remove('hidden');
   paneImportFile?.classList.add('hidden');
+  paneImportQr?.classList.add('hidden');
 });
 
 // Dynamic File Selection Feedback
@@ -129,6 +152,75 @@ btnRemoveFile?.addEventListener('click', (e) => {
   e.stopPropagation();
   resetFileSelection();
 });
+
+// Dynamic QR File Selection Feedback
+fileImportQr?.addEventListener('change', () => {
+  const file = fileImportQr.files?.[0];
+  if (file) {
+    uploadPromptQr?.classList.add('hidden');
+    qrInfoBadge?.classList.remove('hidden');
+    if (qrFileNameDisplay) qrFileNameDisplay.textContent = file.name;
+    const kb = (file.size / 1024).toFixed(1);
+    if (qrFileSizeDisplay) qrFileSizeDisplay.textContent = `${kb} KB • Ready to scan & import`;
+  } else {
+    resetQrFileSelection();
+  }
+});
+
+function resetQrFileSelection() {
+  if (fileImportQr) fileImportQr.value = '';
+  uploadPromptQr?.classList.remove('hidden');
+  qrInfoBadge?.classList.add('hidden');
+}
+
+btnRemoveQrFile?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  resetQrFileSelection();
+});
+
+async function decodeQrFromImageFile(file: File): Promise<string> {
+  if (!file.type.startsWith('image/') && !/\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name)) {
+    throw new Error('Please select an image file (PNG, JPG, JPEG, WebP)');
+  }
+
+  if (!('BarcodeDetector' in window)) {
+    throw new Error('QR code scanning requires BarcodeDetector API, which is not available in this browser environment.');
+  }
+
+  let imageSource: ImageBitmap | HTMLImageElement;
+  if (typeof createImageBitmap === 'function') {
+    imageSource = await createImageBitmap(file);
+  } else {
+    imageSource = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const img = new Image();
+        img.src = reader.result as string;
+        try {
+          await img.decode();
+          resolve(img);
+        } catch {
+          reject(new Error('Failed to decode image data'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+  const detected = await detector.detect(imageSource);
+  if (!detected || detected.length === 0) {
+    throw new Error('No QR code detected in the uploaded image. Please ensure the QR code is clearly visible.');
+  }
+
+  const rawValues = detected.map((d: any) => d.rawValue).filter(Boolean);
+  if (rawValues.length === 0) {
+    throw new Error('QR code content could not be decoded.');
+  }
+
+  return rawValues.join('\n');
+}
 
 // Password show/hide toggle
 document.querySelectorAll<HTMLButtonElement>('.pwd-toggle').forEach((btn) => {
@@ -324,6 +416,7 @@ btnImport?.addEventListener('click', async () => {
       if (res.success && res.data) {
         showBanner(`Successfully imported ${res.data.importedCount} accounts!`);
         resetFileSelection();
+        resetQrFileSelection();
         if (textImport) textImport.value = '';
         importPwd.value = '';
       } else {
@@ -342,14 +435,41 @@ btnImport?.addEventListener('click', async () => {
       return;
     }
     await processImport(textContent);
+  } else if (activeImportMode === 'qr') {
+    const files = fileImportQr?.files;
+    if (!files || files.length === 0) {
+      showBanner('Please select a QR code image to import', true);
+      return;
+    }
+
+    try {
+      showBanner('Scanning QR code image...');
+      const qrData = await decodeQrFromImageFile(files[0]);
+      await processImport(qrData);
+    } catch (err: any) {
+      showBanner(err.message || 'Failed to scan QR code image', true);
+    }
   } else {
     const files = fileImport.files;
     if (!files || files.length === 0) {
-      showBanner('Please select a .json or .txt backup file to import', true);
+      showBanner('Please select a backup file (.json, .txt, or QR image) to import', true);
       return;
     }
 
     const file = files[0];
+
+    // If user dropped or selected an image file in the backup file area, decode it as QR
+    if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)) {
+      try {
+        showBanner('Scanning QR code from image file...');
+        const qrData = await decodeQrFromImageFile(file);
+        await processImport(qrData);
+      } catch (err: any) {
+        showBanner(err.message || 'Failed to scan QR code from image', true);
+      }
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (e) => {
