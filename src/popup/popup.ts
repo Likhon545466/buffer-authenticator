@@ -470,7 +470,6 @@ function renderAccounts() {
     const period = acc.period || 30;
     const remaining = Math.max(0, acc.secondsRemaining);
     const percent = Math.max(0, Math.min(100, (remaining / period) * 100));
-    const dashOffset = (69.12 * (1 - remaining / period)).toFixed(2);
 
     let stateClass = '';
     if (remaining <= 5) {
@@ -510,13 +509,6 @@ function renderAccounts() {
       <div class="code-action-box">
         <div class="code-container" data-timer-id="${acc.id}" title="${remaining}s remaining • Click card to copy code">
           <div class="code-display">${formatOTPCode(acc.code)}</div>
-          <div class="radial-timer-box" title="${remaining}s remaining">
-            <svg class="radial-ring" viewBox="0 0 28 28">
-              <circle class="radial-ring-bg" cx="14" cy="14" r="11" />
-              <circle class="radial-ring-fill ${stateClass}" cx="14" cy="14" r="11" style="stroke-dashoffset: ${dashOffset};" />
-            </svg>
-            <span class="radial-ring-text ${stateClass}">${remaining}</span>
-          </div>
           <div class="chip-progress-track">
             <div class="chip-progress-fill ${stateClass}" style="width: ${percent}%;"></div>
           </div>
@@ -654,7 +646,6 @@ function updateTimerBars() {
     const period = acc.period || 30;
     const remaining = Math.max(0, acc.secondsRemaining);
     const percent = Math.max(0, Math.min(100, (remaining / period) * 100));
-    const dashOffset = (69.12 * (1 - remaining / period)).toFixed(2);
 
     let stateClass = '';
     if (remaining <= 5) {
@@ -667,18 +658,6 @@ function updateTimerBars() {
     if (fillEl) {
       fillEl.style.width = `${percent}%`;
       fillEl.className = `chip-progress-fill ${stateClass}`.trim();
-    }
-
-    const ringFillEl = codeContainer.querySelector('.radial-ring-fill') as SVGCircleElement | null;
-    if (ringFillEl) {
-      ringFillEl.style.strokeDashoffset = `${dashOffset}`;
-      ringFillEl.setAttribute('class', `radial-ring-fill ${stateClass}`.trim());
-    }
-
-    const ringTextEl = codeContainer.querySelector('.radial-ring-text') as HTMLElement | null;
-    if (ringTextEl) {
-      ringTextEl.textContent = String(remaining);
-      ringTextEl.className = `radial-ring-text ${stateClass}`.trim();
     }
 
     codeContainer.setAttribute('title', `${remaining}s remaining • Click card to copy code`);

@@ -11,10 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Brand SVG Logos & Offline Vector Catalog**: Bundled crisp, official offline vector brand icons for 20+ top web services (Google, GitHub, Discord, Steam, AWS, Apple, Binance, Cloudflare, Reddit, Twitch, OpenAI, Spotify, PayPal, Telegram, etc.) with dynamic color fallback for any custom service.
-- **Circular Radial Countdown Timer**: Replaced plain countdown with an integrated radial ring inside the OTP code well featuring live remaining seconds and dynamic color transitions:
-  - Pastel Blue (`> 10s`)
-  - Warning Amber (`5s – 10s`)
-  - Soft Glowing Red Pulse (`< 5s`)
 - **Right-Click Context Menu ("Add to Buffer Authenticator")**:
   - Right-click any 2FA QR code image on any webpage to scan and import it directly into your vault in one click.
   - Floating dark claymorphic in-page toast feedback confirms success or warns if vault is locked.
