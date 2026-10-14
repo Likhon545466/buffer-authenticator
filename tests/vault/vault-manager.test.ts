@@ -246,6 +246,20 @@ describe('VaultManager', () => {
     // 3. Unmatched domain
     const unmatched = await vaultManager.getCodeForDomain('randomwebsite.org');
     expect(unmatched).toBeNull();
+
+    // 4. Locked vault returns null, unlocking restores access
+    await vaultManager.lockVault();
+    expect(await vaultManager.isLocked()).toBe(true);
+    const lockedMatch = await vaultManager.getCodeForDomain('github.com');
+    expect(lockedMatch).toBeNull();
+
+    // Unlock vault with master password
+    await vaultManager.unlockVault(masterPassword);
+    expect(await vaultManager.isLocked()).toBe(false);
+    const restoredGithubMatch = await vaultManager.getCodeForDomain('github.com');
+    expect(restoredGithubMatch).not.toBeNull();
+    expect(restoredGithubMatch?.issuer).toBe('GitHub');
+    expect(restoredGithubMatch?.account).toBe('Likhon545466');
   });
 
   it('changes master password and re-encrypts vault with new salt', async () => {
@@ -445,5 +459,55 @@ describe('VaultManager', () => {
     expect(list[1].issuer).toBe('Alpha');
     expect(list[1].pinned).toBe(false);
   });
+
+  it('reports correct status for uninitialized, locked, and unlocked vault states', async () => {
+    // 1. Uninitialized
+    let status = await vaultManager.getStatus();
+    expect(status.isInitialized).toBe(false);
+    expect(status.isLocked).toBe(true);
+    expect(status.accountCount).toBe(0);
+
+    // 2. Initialized & Unlocked
+    await vaultManager.initVault(masterPassword);
+    status = await vaultManager.getStatus();
+    expect(status.isInitialized).toBe(true);
+    expect(status.isLocked).toBe(false);
+
+    // 3. Locked
+    await vaultManager.lockVault();
+    status = await vaultManager.getStatus();
+    expect(status.isInitialized).toBe(true);
+    expect(status.isLocked).toBe(true);
+
+    // 4. Unlocked again
+    await vaultManager.unlockVault(masterPassword);
+    status = await vaultManager.getStatus();
+    expect(status.isInitialized).toBe(true);
+    expect(status.isLocked).toBe(false);
+  });
+
+  it('updates and persists biometricEnabled setting correctly', async () => {
+    await vaultManager.initVault(masterPassword);
+    let settings = await vaultManager.getSettings();
+    expect(settings.biometricEnabled).toBe(false);
+
+    // Enable biometric
+    await vaultManager.updateSettings({ biometricEnabled: true });
+    settings = await vaultManager.getSettings();
+    expect(settings.biometricEnabled).toBe(true);
+
+    // Status includes biometric setting
+    let status = await vaultManager.getStatus();
+    expect(status.settings.biometricEnabled).toBe(true);
+
+    // Disable biometric
+    await vaultManager.updateSettings({ biometricEnabled: false });
+    settings = await vaultManager.getSettings();
+    expect(settings.biometricEnabled).toBe(false);
+
+    status = await vaultManager.getStatus();
+    expect(status.settings.biometricEnabled).toBe(false);
+  });
 });
+
 

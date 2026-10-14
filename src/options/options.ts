@@ -33,6 +33,17 @@ const fileNameDisplay = document.getElementById('file-name-display') as HTMLSpan
 const fileSizeDisplay = document.getElementById('file-size-display') as HTMLSpanElement;
 const btnRemoveFile = document.getElementById('btn-remove-file') as HTMLButtonElement;
 
+// Locked / Unlocked View Elements
+const viewOptionsLocked = document.getElementById('view-options-locked') as HTMLDivElement | null;
+const viewOptionsUninit = document.getElementById('view-options-uninit') as HTMLDivElement | null;
+const optionsMainContent = document.getElementById('options-main-content') as HTMLDivElement | null;
+const formOptionsUnlock = document.getElementById('form-options-unlock') as HTMLFormElement | null;
+const optionsUnlockPwd = document.getElementById('options-unlock-pwd') as HTMLInputElement | null;
+const optionsLockError = document.getElementById('options-lock-error') as HTMLDivElement | null;
+const btnOptionsLock = document.getElementById('btn-options-lock') as HTMLButtonElement | null;
+const optionsStatusDot = document.getElementById('options-status-dot') as HTMLSpanElement | null;
+const optionsStatusText = document.getElementById('options-status-text') as HTMLSpanElement | null;
+
 // Top Nav Tabs
 const tabPills = document.querySelectorAll<HTMLButtonElement>('.tab-pill');
 const tabPanes = document.querySelectorAll<HTMLElement>('.tab-pane');
@@ -159,14 +170,60 @@ async function sendMessage<T>(msg: MessageRequest): Promise<MessageResponse<T>> 
   return chrome.runtime.sendMessage(msg);
 }
 
+function setLockUIState(isLocked: boolean, isInitialized = true) {
+  if (!isInitialized) {
+    viewOptionsUninit?.classList.remove('hidden');
+    viewOptionsLocked?.classList.add('hidden');
+    optionsMainContent?.classList.add('hidden');
+    btnOptionsLock?.classList.add('hidden');
+    optionsStatusDot?.classList.add('locked');
+    if (optionsStatusText) optionsStatusText.textContent = 'Vault Not Set Up';
+    return;
+  }
+
+  viewOptionsUninit?.classList.add('hidden');
+
+  if (isLocked) {
+    viewOptionsLocked?.classList.remove('hidden');
+    optionsMainContent?.classList.add('hidden');
+    btnOptionsLock?.classList.add('hidden');
+    optionsStatusDot?.classList.add('locked');
+    if (optionsStatusText) optionsStatusText.textContent = 'Vault Locked';
+    if (optionsUnlockPwd) {
+      optionsUnlockPwd.value = '';
+      optionsUnlockPwd.focus();
+    }
+  } else {
+    viewOptionsLocked?.classList.add('hidden');
+    optionsMainContent?.classList.remove('hidden');
+    btnOptionsLock?.classList.remove('hidden');
+    optionsStatusDot?.classList.remove('locked');
+    if (optionsStatusText) optionsStatusText.textContent = 'AES-256-GCM Vault';
+  }
+}
+
 async function loadSettings() {
   const res = await sendMessage<VaultStatus>({ type: 'GET_STATUS' });
   if (res.success && res.data) {
-    const s = res.data.settings;
+    const { isInitialized, isLocked, settings } = res.data;
+    if (!isInitialized) {
+      setLockUIState(true, false);
+      return;
+    }
+    if (isLocked) {
+      setLockUIState(true, true);
+      return;
+    }
+
+    setLockUIState(false, true);
+
+    const s = settings;
     if (selectAutoLock) selectAutoLock.value = String(s.autoLockMinutes ?? 5);
     if (checkIdle) checkIdle.checked = Boolean(s.lockOnIdle);
     if (selectClipboard) selectClipboard.value = String(s.clipboardClearSeconds ?? 30);
     if (checkBiometric) checkBiometric.checked = Boolean(s.biometricEnabled);
+  } else {
+    setLockUIState(true, true);
   }
 }
 
@@ -177,6 +234,9 @@ async function saveSettingChange() {
     clipboardClearSeconds: selectClipboard ? parseInt(selectClipboard.value, 10) : 30,
     biometricEnabled: checkBiometric ? checkBiometric.checked : false,
   };
+  if (!payload.biometricEnabled && chrome.storage?.session) {
+    await chrome.storage.session.remove('biometricToken').catch(() => {});
+  }
   const res = await sendMessage({ type: 'UPDATE_SETTINGS', payload });
   if (res.success) {
     showBanner('Setting saved successfully');
@@ -315,5 +375,42 @@ window.addEventListener('pagehide', () => {
     bannerTimeout = undefined;
   }
 });
+
+// Options Page Unlock Form Handling
+formOptionsUnlock?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (optionsLockError) optionsLockError.classList.add('hidden');
+
+  const password = optionsUnlockPwd?.value || '';
+  if (!password) return;
+
+  const res = await sendMessage({ type: 'UNLOCK_VAULT', payload: { password } });
+  if (res.success) {
+    if (optionsUnlockPwd) optionsUnlockPwd.value = '';
+    await loadSettings();
+    showBanner('Vault unlocked successfully');
+  } else {
+    if (optionsLockError) {
+      optionsLockError.textContent = res.error || 'Incorrect master password';
+      optionsLockError.classList.remove('hidden');
+    }
+  }
+});
+
+// Options Page Manual Lock Button
+btnOptionsLock?.addEventListener('click', async () => {
+  await sendMessage({ type: 'LOCK_VAULT' });
+  setLockUIState(true, true);
+  showBanner('Vault locked');
+});
+
+// Sync lock state if vault locks in background (idle/timeout)
+if (chrome.storage && chrome.storage.session && chrome.storage.session.onChanged) {
+  chrome.storage.session.onChanged.addListener((changes) => {
+    if (changes.sessionKey && !changes.sessionKey.newValue) {
+      setLockUIState(true, true);
+    }
+  });
+}
 
 loadSettings();

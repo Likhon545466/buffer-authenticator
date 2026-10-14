@@ -218,13 +218,51 @@ chrome.runtime.onMessage.addListener((message: MessageRequest, _sender, sendResp
         }
 
         case 'GET_CODE_FOR_DOMAIN': {
+          const isInitialized = await vaultManager.isInitialized();
+          const isLocked = isInitialized ? await vaultManager.isLocked() : true;
+
+          if (!isInitialized || isLocked) {
+            sendResponse({
+              success: true,
+              data: {
+                isLocked,
+                isInitialized,
+                matched: [],
+                all: [],
+              },
+            });
+            break;
+          }
+
           const match = await vaultManager.getCodeForDomain(message.payload.domain);
-          sendResponse({ success: true, data: match });
+          if (match) {
+            sendResponse({
+              success: true,
+              data: {
+                ...match,
+                isLocked: false,
+                isInitialized: true,
+              },
+            });
+          } else {
+            sendResponse({
+              success: true,
+              data: {
+                isLocked: false,
+                isInitialized: true,
+                matched: [],
+                all: [],
+              },
+            });
+          }
           break;
         }
 
         case 'UPDATE_SETTINGS': {
           const updated = await vaultManager.updateSettings(message.payload);
+          if (updated.biometricEnabled === false) {
+            await chrome.storage.session.remove('biometricToken').catch(() => {});
+          }
           await scheduleAutoLock();
           sendResponse({ success: true, data: updated });
           break;
@@ -235,6 +273,12 @@ chrome.runtime.onMessage.addListener((message: MessageRequest, _sender, sendResp
             message.payload.currentPassword,
             message.payload.newPassword
           );
+          const settings = await vaultManager.getSettings();
+          if (settings.biometricEnabled) {
+            await chrome.storage.session.set({ biometricToken: message.payload.newPassword }).catch(() => {});
+          } else {
+            await chrome.storage.session.remove('biometricToken').catch(() => {});
+          }
           sendResponse({ success: true });
           break;
         }

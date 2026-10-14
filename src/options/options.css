@@ -126,6 +126,33 @@ body {
   border-radius: 50%;
   background-color: var(--md-sys-color-success);
   box-shadow: 0 0 6px var(--md-sys-color-success);
+  transition: all 0.2s var(--md-motion-spring);
+}
+
+.status-dot.locked {
+  background-color: var(--md-sys-color-error);
+  box-shadow: 0 0 6px var(--md-sys-color-error);
+}
+
+.btn-lock-badge {
+  background-color: var(--md-sys-color-surface-container);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--md-shape-corner-full);
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s var(--md-motion-spring);
+}
+
+.btn-lock-badge:hover {
+  color: var(--md-sys-color-error);
+  border-color: rgba(255, 180, 171, 0.3);
+  background-color: rgba(255, 180, 171, 0.08);
 }
 
 /* Floating Toast/Banner Notification */

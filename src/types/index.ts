@@ -75,11 +75,13 @@ export interface DomainAutofillAccount {
 }
 
 export interface DomainMatchResult {
-  code: string;
-  issuer: string;
-  account: string;
+  code?: string;
+  issuer?: string;
+  account?: string;
   matched: DomainAutofillAccount[];
   all: DomainAutofillAccount[];
+  isLocked?: boolean;
+  isInitialized?: boolean;
 }
 
 export type MessageRequest =

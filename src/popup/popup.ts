@@ -10,7 +10,7 @@
 import { formatOTPCode, parseOtpAuthUri } from '../crypto/totp';
 import { parseGoogleAuthMigration } from '../utils/backup-parser';
 import { sortAccounts, type SortMode } from '../utils/account-sort';
-import type { MessageRequest, MessageResponse, PublicAccount, VaultStatus } from '../types';
+import type { MessageRequest, MessageResponse, PublicAccount, VaultSettings, VaultStatus } from '../types';
 
 // DOM Elements
 const viewInit = document.getElementById('view-init') as HTMLDivElement;
@@ -128,27 +128,41 @@ function switchView(view: 'init' | 'lock' | 'main') {
     viewInit.classList.remove('hidden');
     btnHeaderLock.classList.add('hidden');
     btnHeaderExport?.classList.add('hidden');
+    btnHeaderSettings.classList.add('hidden');
     initPassword.focus();
   } else if (view === 'lock') {
     viewLock.classList.remove('hidden');
     btnHeaderLock.classList.add('hidden');
     btnHeaderExport?.classList.add('hidden');
+    btnHeaderSettings.classList.add('hidden');
     unlockPassword.value = '';
     unlockPassword.focus();
 
     if (btnBiometricUnlock) {
-      chrome.storage.session.get('biometricToken', (res) => {
-        if (res && res.biometricToken) {
-          btnBiometricUnlock.classList.remove('hidden');
-        } else {
+      sendMessage<VaultStatus>({ type: 'GET_STATUS' })
+        .then((statusRes) => {
+          if (!statusRes?.success || !statusRes.data?.settings?.biometricEnabled) {
+            btnBiometricUnlock.classList.add('hidden');
+            chrome.storage.session.remove('biometricToken').catch(() => {});
+            return;
+          }
+          chrome.storage.session.get('biometricToken', (res) => {
+            if (res && res.biometricToken) {
+              btnBiometricUnlock.classList.remove('hidden');
+            } else {
+              btnBiometricUnlock.classList.add('hidden');
+            }
+          });
+        })
+        .catch(() => {
           btnBiometricUnlock.classList.add('hidden');
-        }
-      });
+        });
     }
   } else if (view === 'main') {
     viewMain.classList.remove('hidden');
     btnHeaderLock.classList.remove('hidden');
     btnHeaderExport?.classList.remove('hidden');
+    btnHeaderSettings.classList.remove('hidden');
     searchInput.focus();
   }
 }
@@ -827,7 +841,12 @@ formUnlock.addEventListener('submit', async (e) => {
   const p = unlockPassword.value;
   const res = await sendMessage({ type: 'UNLOCK_VAULT', payload: { password: p } });
   if (res.success) {
-    chrome.storage.session.set({ biometricToken: p }).catch(() => {});
+    const statusRes = await sendMessage<VaultStatus>({ type: 'GET_STATUS' }).catch(() => null);
+    if (statusRes?.success && statusRes.data?.settings?.biometricEnabled) {
+      await chrome.storage.session.set({ biometricToken: p }).catch(() => {});
+    } else {
+      await chrome.storage.session.remove('biometricToken').catch(() => {});
+    }
     switchView('main');
     await loadAccounts();
     startTicker();
@@ -839,9 +858,18 @@ formUnlock.addEventListener('submit', async (e) => {
 
 btnBiometricUnlock?.addEventListener('click', async () => {
   try {
+    const statusRes = await sendMessage<VaultStatus>({ type: 'GET_STATUS' }).catch(() => null);
+    if (!statusRes?.success || !statusRes.data?.settings?.biometricEnabled) {
+      btnBiometricUnlock.classList.add('hidden');
+      await chrome.storage.session.remove('biometricToken').catch(() => {});
+      showToast('Biometric unlock is disabled in settings');
+      return;
+    }
+
     const res = await chrome.storage.session.get('biometricToken');
     const token = res?.biometricToken;
     if (!token) {
+      btnBiometricUnlock.classList.add('hidden');
       showToast('Enter password to authenticate first');
       return;
     }
@@ -884,7 +912,12 @@ btnHeaderLock.addEventListener('click', async () => {
   showToast('Vault locked');
 });
 
-btnHeaderSettings.addEventListener('click', () => {
+btnHeaderSettings.addEventListener('click', async () => {
+  const statusRes = await sendMessage<VaultStatus>({ type: 'GET_STATUS' });
+  if (!statusRes.success || !statusRes.data || statusRes.data.isLocked || !statusRes.data.isInitialized) {
+    showToast('Unlock vault to access settings');
+    return;
+  }
   if (chrome.runtime.openOptionsPage) {
     chrome.runtime.openOptionsPage();
   } else {
@@ -1384,6 +1417,29 @@ chrome.storage.local.get(['accountSortOrder'], (result) => {
     updateSortButtonUI();
   }
 });
+
+// Biometric state synchronization
+if (chrome.storage && chrome.storage.session && chrome.storage.session.onChanged) {
+  chrome.storage.session.onChanged.addListener((changes) => {
+    if (changes.biometricToken && !changes.biometricToken.newValue && btnBiometricUnlock) {
+      btnBiometricUnlock.classList.add('hidden');
+    }
+  });
+}
+
+if (chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.settings) {
+      const newSettings = changes.settings.newValue as VaultSettings | undefined;
+      if (newSettings && !newSettings.biometricEnabled) {
+        chrome.storage.session.remove('biometricToken').catch(() => {});
+        if (btnBiometricUnlock) {
+          btnBiometricUnlock.classList.add('hidden');
+        }
+      }
+    }
+  });
+}
 
 // Bootstrap
 checkStatus();

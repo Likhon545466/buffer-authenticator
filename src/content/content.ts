@@ -90,6 +90,22 @@ function formatCode(code: string): string {
 }
 
 /**
+ * Safely escape HTML to prevent XSS injection in dynamic text
+ */
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (m) => {
+    switch (m) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return m;
+    }
+  });
+}
+
+/**
  * Safely fill OTP code into target input and dispatch native events
  */
 function fillOtpIntoInput(input: HTMLInputElement, code: string) {
@@ -271,6 +287,30 @@ function attachAutofillTrigger(input: HTMLInputElement) {
       .btn-close-popover:hover {
         color: #ffffff;
       }
+      .popover-actions-row {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .btn-popover-lock {
+        background: transparent;
+        border: none;
+        color: #9aa0a6;
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s ease, background-color 0.15s ease;
+      }
+      .btn-popover-lock:hover {
+        color: #ffb4ab;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .btn-popover-lock.hidden {
+        display: none;
+      }
 
       /* Accounts List */
       .accounts-list {
@@ -415,6 +455,162 @@ function attachAutofillTrigger(input: HTMLInputElement) {
         margin-bottom: 6px;
         color: #a8c7fa;
       }
+      .empty-box .empty-sub {
+        font-size: 10px;
+        color: #6c727d;
+        margin-top: 4px;
+      }
+
+      /* In-Popover Unlock Form */
+      .unlock-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 2px;
+      }
+      .unlock-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .unlock-icon-badge {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: rgba(168, 199, 250, 0.12);
+        border: 1px solid rgba(168, 199, 250, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #a8c7fa;
+        flex-shrink: 0;
+      }
+      .unlock-text {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .unlock-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffffff;
+        line-height: 1.2;
+        margin-bottom: 2px;
+      }
+      .unlock-desc {
+        font-size: 11px;
+        color: #9aa0a6;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .unlock-desc strong {
+        color: #a8c7fa;
+      }
+      .unlock-form {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 2px;
+      }
+      .unlock-input-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+      }
+      .unlock-password-input {
+        width: 100%;
+        background: #0e1015;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        padding: 8px 34px 8px 10px;
+        font-size: 12.5px;
+        color: #ffffff;
+        outline: none;
+        font-family: inherit;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .unlock-password-input:focus {
+        border-color: #a8c7fa;
+        box-shadow: 0 0 0 2px rgba(168, 199, 250, 0.25);
+      }
+      .unlock-password-input::placeholder {
+        color: #6c727d;
+      }
+      .btn-toggle-eye {
+        position: absolute;
+        right: 6px;
+        background: transparent;
+        border: none;
+        color: #80868b;
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+      }
+      .btn-toggle-eye:hover {
+        color: #ffffff;
+      }
+      .unlock-error-msg {
+        font-size: 11px;
+        color: #ffb4ab;
+        background: rgba(147, 0, 10, 0.25);
+        border: 1px solid rgba(255, 180, 171, 0.25);
+        border-radius: 6px;
+        padding: 6px 8px;
+        line-height: 1.3;
+        animation: shake 0.25s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+      }
+      .unlock-error-msg.hidden {
+        display: none;
+      }
+      @keyframes shake {
+        10%, 90% { transform: translate3d(-1px, 0, 0); }
+        20%, 80% { transform: translate3d(2px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+        40%, 60% { transform: translate3d(3px, 0, 0); }
+      }
+      .btn-unlock-action {
+        background: #0842a0;
+        color: #d3e3fd;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        transition: all 0.15s ease;
+      }
+      .btn-unlock-action:hover:not(:disabled) {
+        background: #0b57d0;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(11, 87, 208, 0.4);
+      }
+      .btn-unlock-action:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-unlock-action:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      .spin-icon {
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
     </style>
 
     <button type="button" class="badge-btn" id="badge-trigger" title="Buffer Authenticator (Click to view live 2FA code)">
@@ -432,12 +628,20 @@ function attachAutofillTrigger(input: HTMLInputElement) {
           <span class="popover-brand">Buffer Authenticator</span>
           <span class="popover-domain" id="domain-label"></span>
         </div>
-        <button type="button" class="btn-close-popover" id="btn-close" title="Close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div class="popover-actions-row">
+          <button type="button" class="btn-popover-lock hidden" id="btn-popover-lock" title="Lock Vault">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </button>
+          <button type="button" class="btn-close-popover" id="btn-close" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="accounts-list" id="accounts-list-container">
@@ -453,12 +657,15 @@ function attachAutofillTrigger(input: HTMLInputElement) {
   const domainLabel = shadow.getElementById('domain-label') as HTMLSpanElement;
   const accountsContainer = shadow.getElementById('accounts-list-container') as HTMLDivElement;
   const btnClose = shadow.getElementById('btn-close') as HTMLButtonElement;
+  const btnLock = shadow.getElementById('btn-popover-lock') as HTMLButtonElement;
 
   domainLabel.textContent = window.location.hostname;
 
   let currentAccounts: DomainAutofillAccount[] = [];
   let tickerTimer: ReturnType<typeof setInterval> | null = null;
   let isPopoverOpen = false;
+  let isVaultLocked = false;
+  let isVaultInitialized = true;
 
   /**
    * Position the in-field badge at the right edge of the input
@@ -510,19 +717,217 @@ function attachAutofillTrigger(input: HTMLInputElement) {
   }
 
   /**
-   * Render accounts list with live TOTP code & progress bar
+   * Start live countdown ticker
+   */
+  function startTicker() {
+    if (tickerTimer) clearInterval(tickerTimer);
+    if (isVaultLocked || !isVaultInitialized || currentAccounts.length === 0) {
+      return;
+    }
+    tickerTimer = setInterval(async () => {
+      let needsRefresh = false;
+      currentAccounts.forEach((acc) => {
+        acc.secondsRemaining -= 1;
+        if (acc.secondsRemaining <= 0) {
+          needsRefresh = true;
+        }
+      });
+
+      if (needsRefresh) {
+        await fetchDomainAccounts();
+        renderPopoverAccounts();
+      } else {
+        updateLiveTimers();
+      }
+    }, 1000);
+  }
+
+  /**
+   * Render accounts list with live TOTP code & progress bar, or unlock view if locked
    */
   function renderPopoverAccounts() {
     accountsContainer.innerHTML = '';
 
-    if (currentAccounts.length === 0) {
+    if (!isVaultInitialized) {
+      btnLock.classList.add('hidden');
       accountsContainer.innerHTML = `
         <div class="empty-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          <p>No 2FA account found for <strong>${window.location.hostname}</strong></p>
+          <p>Vault is not set up</p>
+          <p class="empty-sub">Open Buffer Authenticator from your toolbar to set up your master password.</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (isVaultLocked) {
+      btnLock.classList.add('hidden');
+      accountsContainer.innerHTML = `
+        <div class="unlock-panel">
+          <div class="unlock-header">
+            <div class="unlock-icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <div class="unlock-text">
+              <div class="unlock-title">Vault is Locked</div>
+              <div class="unlock-desc">Enter password to unlock 2FA codes</div>
+            </div>
+          </div>
+
+          <form id="popover-unlock-form" class="unlock-form">
+            <div class="unlock-input-row">
+              <input
+                type="password"
+                id="popover-password-input"
+                class="unlock-password-input"
+                placeholder="Enter master password"
+                autocomplete="current-password"
+                required
+              />
+              <button type="button" id="popover-btn-toggle-eye" class="btn-toggle-eye" title="Show/Hide password">
+                <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+
+            <div id="popover-unlock-error" class="unlock-error-msg hidden"></div>
+
+            <button type="submit" id="popover-btn-unlock" class="btn-unlock-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+              </svg>
+              <span>Unlock Vault</span>
+            </button>
+          </form>
+        </div>
+      `;
+
+      // Wire up unlock form controls
+      const toggleEyeBtn = accountsContainer.querySelector('#popover-btn-toggle-eye') as HTMLButtonElement | null;
+      const pwdInput = accountsContainer.querySelector('#popover-password-input') as HTMLInputElement | null;
+      const errBox = accountsContainer.querySelector('#popover-unlock-error') as HTMLDivElement | null;
+      const unlockForm = accountsContainer.querySelector('#popover-unlock-form') as HTMLFormElement | null;
+      const unlockSubmitBtn = accountsContainer.querySelector('#popover-btn-unlock') as HTMLButtonElement | null;
+
+      let isPasswordVisible = false;
+      if (toggleEyeBtn && pwdInput) {
+        toggleEyeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          isPasswordVisible = !isPasswordVisible;
+          pwdInput.type = isPasswordVisible ? 'text' : 'password';
+          toggleEyeBtn.innerHTML = isPasswordVisible
+            ? `<svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>`
+            : `<svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>`;
+        });
+      }
+
+      if (pwdInput) {
+        // Prevent keypresses from bubbling to host page keyboard shortcuts
+        pwdInput.addEventListener('keydown', (e) => e.stopPropagation());
+        pwdInput.addEventListener('keyup', (e) => e.stopPropagation());
+        pwdInput.addEventListener('keypress', (e) => e.stopPropagation());
+
+        setTimeout(() => {
+          if (isPopoverOpen && isVaultLocked) {
+            pwdInput.focus();
+          }
+        }, 50);
+      }
+
+      if (unlockForm && pwdInput && errBox && unlockSubmitBtn) {
+        unlockForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const pwd = pwdInput.value;
+          if (!pwd) return;
+
+          errBox.classList.add('hidden');
+          errBox.textContent = '';
+          unlockSubmitBtn.disabled = true;
+          unlockSubmitBtn.innerHTML = `
+            <svg class="spin-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10"/>
+            </svg>
+            <span>Unlocking...</span>
+          `;
+
+          try {
+            const unlockRes: MessageResponse = await chrome.runtime.sendMessage({
+              type: 'UNLOCK_VAULT',
+              payload: { password: pwd },
+            });
+
+            if (unlockRes && unlockRes.success) {
+              isVaultLocked = false;
+              await fetchDomainAccounts();
+              renderPopoverAccounts();
+              updatePopoverPosition();
+              startTicker();
+            } else {
+              unlockSubmitBtn.disabled = false;
+              unlockSubmitBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                </svg>
+                <span>Unlock Vault</span>
+              `;
+              errBox.textContent = unlockRes?.error || 'Incorrect master password';
+              errBox.classList.remove('hidden');
+              pwdInput.focus();
+              pwdInput.select();
+              updatePopoverPosition();
+            }
+          } catch (err: any) {
+            unlockSubmitBtn.disabled = false;
+            unlockSubmitBtn.innerHTML = `
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+              </svg>
+              <span>Unlock Vault</span>
+            `;
+            errBox.textContent = err?.message || 'Failed to unlock vault';
+            errBox.classList.remove('hidden');
+            pwdInput.focus();
+            updatePopoverPosition();
+          }
+        });
+      }
+
+      return;
+    }
+
+    // Vault is unlocked
+    btnLock.classList.remove('hidden');
+
+    if (currentAccounts.length === 0) {
+      accountsContainer.innerHTML = `
+        <div class="empty-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <p>No 2FA account found for <strong>${escapeHtml(window.location.hostname)}</strong></p>
+          <p class="empty-sub">Add this account in Buffer Authenticator popup</p>
         </div>
       `;
       return;
@@ -642,6 +1047,9 @@ function attachAutofillTrigger(input: HTMLInputElement) {
       };
       const res: MessageResponse<DomainMatchResult | null> = await chrome.runtime.sendMessage(msg);
       if (res && res.success && res.data) {
+        isVaultLocked = Boolean(res.data.isLocked);
+        isVaultInitialized = res.data.isInitialized !== false;
+
         // If exact matches exist, display them; otherwise fallback to other vault accounts
         if (res.data.matched && res.data.matched.length > 0) {
           currentAccounts = res.data.matched;
@@ -652,11 +1060,22 @@ function attachAutofillTrigger(input: HTMLInputElement) {
         }
         return true;
       } else {
+        // Fallback status check
+        try {
+          const statusRes: MessageResponse<any> = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
+          if (statusRes && statusRes.success && statusRes.data) {
+            isVaultLocked = Boolean(statusRes.data.isLocked);
+            isVaultInitialized = Boolean(statusRes.data.isInitialized);
+          }
+        } catch {
+          isVaultLocked = false;
+        }
         currentAccounts = [];
         return false;
       }
     } catch {
       currentAccounts = [];
+      isVaultLocked = false;
       return false;
     }
   }
@@ -681,23 +1100,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
     renderPopoverAccounts();
     updatePopoverPosition();
 
-    if (tickerTimer) clearInterval(tickerTimer);
-    tickerTimer = setInterval(async () => {
-      let needsRefresh = false;
-      currentAccounts.forEach((acc) => {
-        acc.secondsRemaining -= 1;
-        if (acc.secondsRemaining <= 0) {
-          needsRefresh = true;
-        }
-      });
-
-      if (needsRefresh) {
-        await fetchDomainAccounts();
-        renderPopoverAccounts();
-      } else {
-        updateLiveTimers();
-      }
-    }, 1000);
+    startTicker();
   }
 
   /**
@@ -727,6 +1130,27 @@ function attachAutofillTrigger(input: HTMLInputElement) {
   btnClose.addEventListener('click', (e) => {
     e.stopPropagation();
     closePopover();
+  });
+
+  btnLock.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      await chrome.runtime.sendMessage({ type: 'LOCK_VAULT' });
+    } catch {
+      // Ignored
+    }
+    isVaultLocked = true;
+    currentAccounts = [];
+    if (tickerTimer) {
+      clearInterval(tickerTimer);
+      tickerTimer = null;
+    }
+    renderPopoverAccounts();
+    updatePopoverPosition();
+  });
+
+  popover.addEventListener('click', (e) => {
+    e.stopPropagation();
   });
 
   // Global dismiss on click outside or Escape
