@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-10-15
+
+### Added
+- **Settings QR Code Image Scan & Import**: Added a dedicated "Scan QR Code Image" tab under Settings > Vault Migration & Backups (Import Accounts). Users can drag-and-drop or browse screenshot/image files (`.png`, `.jpg`, `.jpeg`, `.webp`), decode QR codes natively via the `BarcodeDetector` API without third-party services, and import `otpauth://` URIs, Google Authenticator batch migration codes, and secret keys directly into their encrypted vault.
+- **Auto-Detection for Image Backup Files**: If an image is dropped or uploaded into the general backup file area, the extension automatically detects and parses the embedded QR code.
+
+---
+
 ## [1.1.0] - 2026-10-14
 
 ### Added
