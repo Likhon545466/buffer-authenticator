@@ -693,11 +693,12 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   background-color: var(--md-sys-color-surface-well);
   border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 14px;
   box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.65), inset -2px -2px 4px rgba(255, 255, 255, 0.04);
-  padding: 8px 16px 11px 16px;
+  padding: 7px 12px 10px 14px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s var(--md-motion-spring);
@@ -717,12 +718,81 @@ header {
 /* Monospace OTP Digits */
 .code-display {
   font-family: ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Consolas, monospace;
-  font-size: 19px;
+  font-size: 18.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   color: var(--md-sys-color-on-surface);
   line-height: 1.2;
+}
+
+/* Circular Radial Countdown Timer */
+.radial-timer-box {
+  position: relative;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.radial-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.radial-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 2.6;
+}
+
+.radial-ring-fill {
+  fill: none;
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 69.12;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.6s linear, stroke 0.3s ease, filter 0.3s ease;
+}
+
+.radial-ring-fill.warning {
+  stroke: var(--md-sys-color-warning);
+  filter: drop-shadow(0 0 3px rgba(255, 185, 81, 0.6));
+}
+
+.radial-ring-fill.danger {
+  stroke: var(--md-sys-color-error);
+  filter: drop-shadow(0 0 4px rgba(255, 107, 107, 0.8));
+  animation: pulse-ring-danger 1s infinite alternate ease-in-out;
+}
+
+.radial-ring-text {
+  position: absolute;
+  font-family: ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--md-sys-color-primary);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  transition: color 0.3s ease;
+}
+
+.radial-ring-text.warning {
+  color: var(--md-sys-color-warning);
+}
+
+.radial-ring-text.danger {
+  color: var(--md-sys-color-error);
+  animation: pulse-ring-danger 1s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-ring-danger {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.08); opacity: 1; }
 }
 
 /* Countdown Timer Bar: In lower edge of OTP well with soft pastel glow */

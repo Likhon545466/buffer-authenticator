@@ -101,7 +101,20 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
 });
 
 // Setup lifecycle listeners
+function setupContextMenu() {
+  if (chrome.contextMenus) {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'scan-qr-context-menu',
+        title: 'Add to Buffer Authenticator',
+        contexts: ['image'],
+      });
+    });
+  }
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
+  setupContextMenu();
   const isLocked = await vaultManager.isLocked();
   if (!isLocked) {
     await scheduleAutoLock();
@@ -109,6 +122,24 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.alarms.clear(AUTO_LOCK_ALARM_NAME);
   }
 });
+
+// Setup context menu on startup
+setupContextMenu();
+
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId === 'scan-qr-context-menu' && tab?.id) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, {
+          type: 'CONTEXT_MENU_SCAN_QR',
+          srcUrl: info.srcUrl,
+        });
+      } catch (err) {
+        console.warn('Failed to dispatch context menu scan to tab:', err);
+      }
+    }
+  });
+}
 
 /**
  * External message listener with strict sender whitelist

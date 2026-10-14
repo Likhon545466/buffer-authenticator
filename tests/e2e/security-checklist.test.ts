@@ -31,7 +31,7 @@ describe('Security Checklist Verification (Non-Negotiable)', () => {
     expect(manifest.manifest_version).toBe(3);
 
     // Permitted permissions
-    const allowedPermissions = new Set(['storage', 'activeTab', 'alarms', 'idle', 'scripting']);
+    const allowedPermissions = new Set(['storage', 'activeTab', 'alarms', 'idle', 'scripting', 'contextMenus']);
     manifest.permissions.forEach((perm: string) => {
       expect(allowedPermissions.has(perm)).toBe(true);
     });

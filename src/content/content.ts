@@ -14,19 +14,50 @@
  */
 
 import type { MessageRequest, MessageResponse, DomainMatchResult, DomainAutofillAccount } from '../types';
+import { getBrandInfo } from '../utils/brand-icons';
 
 const HOST_CONTAINER_CLASS = 'buffer-auth-inline-host';
 const PROCESSED_ATTR = 'data-buffer-auth-detected';
+
+/**
+ * Detect if input is part of a 4-8 box split OTP cluster (e.g. GitHub, Amazon, Steam)
+ */
+function getSegmentedCluster(el: HTMLInputElement): HTMLInputElement[] | null {
+  if (el.maxLength !== 1 && el.getAttribute('size') !== '1') return null;
+  const parent = el.form || el.closest('form') || el.parentElement;
+  if (!parent) return null;
+  const inputs = Array.from(parent.querySelectorAll<HTMLInputElement>('input')).filter(
+    (i) => (i.maxLength === 1 || i.getAttribute('size') === '1') &&
+           (i.type === 'tel' || i.type === 'text' || i.type === 'number' || i.type === 'password' || i.inputMode === 'numeric')
+  );
+  if (inputs.length >= 4 && inputs.length <= 8 && inputs.includes(el)) {
+    return inputs;
+  }
+  return null;
+}
 
 /**
  * Heuristic check if an input field is an OTP / 2FA field
  */
 function isOtpField(el: HTMLInputElement): boolean {
   if (el.hasAttribute(PROCESSED_ATTR)) return false;
-  if (el.type === 'password' || el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio') {
+  if (el.type === 'password' && el.maxLength !== 1) {
+    return false;
+  }
+  if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio') {
     return false;
   }
   if (el.disabled || el.readOnly) return false;
+
+  // Segmented input cluster check: only attach trigger to the FIRST input in the cluster
+  const cluster = getSegmentedCluster(el);
+  if (cluster) {
+    if (cluster[0] === el) {
+      cluster.slice(1).forEach((sib) => sib.setAttribute(PROCESSED_ATTR, 'cluster-sibling'));
+      return true;
+    }
+    return false;
+  }
 
   const autocomplete = (el.getAttribute('autocomplete') || '').toLowerCase();
   if (autocomplete === 'one-time-code') {
@@ -51,29 +82,6 @@ function isOtpField(el: HTMLInputElement): boolean {
   }
 
   return false;
-}
-
-/**
- * Brand color/initial resolver for avatars
- */
-function getBrandInfo(name: string): { bg: string; color: string; label: string } {
-  const norm = (name || '').toLowerCase().trim();
-  if (norm.includes('google')) return { bg: '#1a2332', color: '#4285F4', label: 'G' };
-  if (norm.includes('github')) return { bg: '#24292e', color: '#ffffff', label: 'GH' };
-  if (norm.includes('microsoft')) return { bg: '#182538', color: '#00a4ef', label: 'MS' };
-  if (norm.includes('facebook') || norm.includes('meta')) return { bg: '#0c2e59', color: '#1877f2', label: 'FB' };
-  if (norm.includes('twitter') || norm.includes('x')) return { bg: '#1b222d', color: '#ffffff', label: 'X' };
-
-  let hash = 0;
-  for (let i = 0; i < norm.length; i++) {
-    hash = norm.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash % 360);
-  return {
-    bg: `hsl(${hue}, 40%, 18%)`,
-    color: `hsl(${hue}, 85%, 75%)`,
-    label: (name.slice(0, 2) || '2F').toUpperCase(),
-  };
 }
 
 /**
@@ -105,39 +113,54 @@ function escapeHtml(str: string): string {
   });
 }
 
+function fillSingleInput(el: HTMLInputElement, val: string) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  el.focus();
+  if (nativeSetter) {
+    nativeSetter.call(el, val);
+  } else {
+    el.value = val;
+  }
+  try {
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: val }));
+  } catch {
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: val, code: `Digit${val}`, bubbles: true }));
+  el.dispatchEvent(new KeyboardEvent('keyup', { key: val, code: `Digit${val}`, bubbles: true }));
+}
+
 /**
- * Safely fill OTP code into target input and dispatch native events
+ * Safely fill OTP code into target input and dispatch native events with React/Vue/Angular compatibility
  */
 function fillOtpIntoInput(input: HTMLInputElement, code: string) {
-  const cleanCode = code.replace(/\s+/g, '');
+  const cleanCode = code.replace(/\D/g, '');
 
   // Handle segmented inputs (e.g. 6 separate 1-digit boxes)
-  if (input.maxLength === 1) {
-    const parentForm = input.form || input.closest('form') || input.parentElement;
-    if (parentForm) {
-      const singleDigitInputs = Array.from(parentForm.querySelectorAll<HTMLInputElement>('input')).filter(
-        (i) => i.maxLength === 1 && (i.type === 'tel' || i.type === 'text' || i.type === 'number' || i.inputMode === 'numeric')
-      );
-      if (singleDigitInputs.length >= cleanCode.length) {
-        singleDigitInputs.forEach((inp, idx) => {
-          if (idx < cleanCode.length) {
-            inp.value = cleanCode[idx];
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        });
-        const targetFocus = singleDigitInputs[Math.min(cleanCode.length - 1, singleDigitInputs.length - 1)];
-        targetFocus?.focus();
-        return;
+  const cluster = getSegmentedCluster(input) || (() => {
+    const parent = input.form || input.closest('form') || input.parentElement;
+    if (!parent) return null;
+    const inputs = Array.from(parent.querySelectorAll<HTMLInputElement>('input')).filter(
+      (i) => (i.maxLength === 1 || i.getAttribute('size') === '1') &&
+             (i.type === 'tel' || i.type === 'text' || i.type === 'number' || i.type === 'password' || i.inputMode === 'numeric')
+    );
+    return inputs.length >= 4 && inputs.length <= 8 ? inputs : null;
+  })();
+
+  if (cluster && cluster.length >= cleanCode.length) {
+    cluster.forEach((inp, idx) => {
+      if (idx < cleanCode.length) {
+        fillSingleInput(inp, cleanCode[idx]);
       }
-    }
+    });
+    const targetFocus = cluster[Math.min(cleanCode.length - 1, cluster.length - 1)];
+    targetFocus?.focus();
+    return;
   }
 
   // Standard input fill
-  input.value = cleanCode;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-  input.focus();
+  fillSingleInput(input, cleanCode);
 }
 
 /**
@@ -348,6 +371,11 @@ function attachAutofillTrigger(input: HTMLInputElement) {
         font-size: 10px;
         font-weight: 700;
         flex-shrink: 0;
+        overflow: hidden;
+      }
+      .card-avatar svg {
+        width: 14px;
+        height: 14px;
       }
       .card-info {
         display: flex;
@@ -950,7 +978,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
       card.innerHTML = `
         <div class="card-top">
           <div class="card-avatar" style="background: ${brand.bg}; color: ${brand.color};">
-            ${brand.label}
+            ${brand.svg ? brand.svg : brand.label}
           </div>
           <div class="card-info">
             <span class="card-issuer" title="${acc.issuer || 'Account'}">${acc.issuer || 'Account'}</span>
@@ -1248,3 +1276,136 @@ document.addEventListener('visibilitychange', () => {
     startObserver();
   }
 });
+
+// ============================================================================
+// Right-Click Context Menu "Add QR Code to Buffer Authenticator" Handler
+// ============================================================================
+let lastRightClickedElement: HTMLElement | null = null;
+document.addEventListener('contextmenu', (e) => {
+  lastRightClickedElement = e.target as HTMLElement;
+}, true);
+
+function showPageToast(message: string, type: 'success' | 'warning' | 'error' = 'success') {
+  let toastEl = document.getElementById('buffer-auth-toast-container');
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.id = 'buffer-auth-toast-container';
+    toastEl.style.cssText = `
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 2147483647;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    `;
+    document.body.appendChild(toastEl);
+  }
+
+  const toast = document.createElement('div');
+  const bg = type === 'error' ? '#2A1818' : type === 'warning' ? '#2A2214' : '#141E28';
+  const border = type === 'error' ? '#FF6B6B' : type === 'warning' ? '#FFB951' : '#A8C7FA';
+  const color = type === 'error' ? '#FFDADA' : type === 'warning' ? '#FFF2D6' : '#E2E2E9';
+  const icon = type === 'error' ? '✕' : type === 'warning' ? '⚠' : '✓';
+
+  toast.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: ${bg};
+    border: 1px solid ${border};
+    color: ${color};
+    padding: 12px 18px;
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), inset 1px 1px 2px rgba(255, 255, 255, 0.12);
+    font-size: 13.5px;
+    font-weight: 600;
+    pointer-events: auto;
+    transform: translateY(-10px);
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  `;
+  toast.innerHTML = `
+    <span style="font-size: 16px; color: ${border}; font-weight: 800;">${icon}</span>
+    <span>${escapeHtml(message)}</span>
+  `;
+
+  toastEl.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.transform = 'translateY(0)';
+    toast.style.opacity = '1';
+  });
+
+  setTimeout(() => {
+    toast.style.transform = 'translateY(-10px)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 4200);
+}
+
+async function handleContextMenuScan(srcUrl?: string) {
+  showPageToast('Scanning QR code with Buffer Authenticator...', 'warning');
+
+  try {
+    if (!('BarcodeDetector' in window)) {
+      showPageToast('BarcodeDetector API is unavailable in this browser', 'error');
+      return;
+    }
+
+    let imgSource: HTMLImageElement | HTMLCanvasElement | ImageBitmap | null = null;
+    if (lastRightClickedElement instanceof HTMLImageElement && (lastRightClickedElement.currentSrc || lastRightClickedElement.src)) {
+      imgSource = lastRightClickedElement;
+    } else if (lastRightClickedElement instanceof HTMLCanvasElement) {
+      imgSource = lastRightClickedElement;
+    } else if (srcUrl) {
+      imgSource = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load image from page URL'));
+        img.src = srcUrl;
+      });
+    }
+
+    if (!imgSource) {
+      showPageToast('Could not find image element to scan', 'error');
+      return;
+    }
+
+    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+    const detected = await detector.detect(imgSource);
+    if (!detected || detected.length === 0) {
+      showPageToast('No QR code detected in the selected image', 'error');
+      return;
+    }
+
+    const rawQr = detected[0].rawValue;
+    const res: MessageResponse<{ importedCount: number }> = await chrome.runtime.sendMessage({
+      type: 'IMPORT_VAULT',
+      payload: { data: rawQr },
+    });
+
+    if (res.success && res.data) {
+      showPageToast(`✓ Added ${res.data.importedCount} account(s) to Buffer Authenticator!`, 'success');
+    } else {
+      const err = res.error || 'Failed to import account';
+      if (err.toLowerCase().includes('locked')) {
+        showPageToast('Buffer Authenticator is locked! Please unlock your vault first.', 'warning');
+      } else {
+        showPageToast(err, 'error');
+      }
+    }
+  } catch (err: any) {
+    showPageToast(err.message || 'Error scanning QR code', 'error');
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'CONTEXT_MENU_SCAN_QR') {
+    handleContextMenuScan(message.srcUrl);
+    sendResponse({ received: true });
+  }
+});
+
