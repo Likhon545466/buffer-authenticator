@@ -18,6 +18,24 @@ describe('getBrandInfo', () => {
 
     const binance = getBrandInfo('Binance');
     expect(binance.color).toBe('#F0B90B');
+
+    const instagram = getBrandInfo('Instagram');
+    expect(instagram.label).toBe('IG');
+    expect(instagram.svg).toContain('rx="5.5"');
+
+    const snapchat = getBrandInfo('Snapchat');
+    expect(snapchat.label).toBe('SC');
+    expect(snapchat.color).toBe('#FFFC00');
+
+    const teamviewer = getBrandInfo('TeamViewer');
+    expect(teamviewer.label).toBe('TV');
+    expect(teamviewer.color).toBe('#0E70EB');
+    expect(teamviewer.svg).toContain('circle');
+
+    // Dual parameter resolution: issuer empty, account contains service
+    const instaAccount = getBrandInfo('', 'user@instagram.com');
+    expect(instaAccount.label).toBe('IG');
+    expect(instaAccount.svg).toBeDefined();
   });
 
   it('handles fallback for unknown issuers gracefully', () => {

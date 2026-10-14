@@ -966,7 +966,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
       card.className = 'account-card';
       card.setAttribute('data-id', acc.id);
 
-      const brand = getBrandInfo(acc.issuer || acc.account);
+      const brand = getBrandInfo(acc.issuer, acc.account);
       const period = acc.period || 30;
       const remaining = Math.max(0, acc.secondsRemaining);
       const percent = Math.max(0, Math.min(100, (remaining / period) * 100));

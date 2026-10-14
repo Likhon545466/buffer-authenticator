@@ -10,10 +10,12 @@ export interface BrandInfo {
   svg?: string;
 }
 
-export function getBrandInfo(issuerOrAccount: string): BrandInfo {
-  const norm = (issuerOrAccount || '').toLowerCase().trim();
+export function getBrandInfo(issuerOrAccount?: string, account?: string): BrandInfo {
+  const primaryName = (issuerOrAccount && issuerOrAccount.trim()) || (account && account.trim()) || '';
+  const combined = `${issuerOrAccount || ''} ${account || ''}`.toLowerCase().trim();
+  const norm = combined.replace(/[-_.]/g, ' ');
 
-  // 1. Google
+  // 1. Google / Gmail
   if (norm.includes('google') || norm.includes('gmail')) {
     return {
       bg: '#1a2332',
@@ -33,7 +35,57 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 3. Discord
+  // 3. Instagram
+  if (norm.includes('instagram') || norm.includes('insta')) {
+    return {
+      bg: '#331326',
+      color: '#E1306C',
+      label: 'IG',
+      svg: `<svg viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5.5" ry="5.5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.8" fill="#E1306C" stroke="none"/></svg>`,
+    };
+  }
+
+  // 4. Snapchat
+  if (norm.includes('snapchat') || norm.includes('snap chat')) {
+    return {
+      bg: '#333008',
+      color: '#FFFC00',
+      label: 'SC',
+      svg: `<svg viewBox="0 0 24 24" fill="#FFFC00"><path d="M12.001 2.5c-3.3 0-5.5 2.45-5.5 5.73 0 1.08.22 2.37.52 3.13-.57.22-1.32.55-1.67 1.1-.37.6-.25 1.38.29 1.66.47.24 1.23.08 1.82-.12.2.96.85 2.2 1.99 2.9-.57.24-1.28.46-1.75.92-.51.51-.38 1.35.08 1.57 1.15.56 3.18.28 4.2-.3 1 .58 3.04.86 4.19.3.46-.22.59-1.06.08-1.57-.46-.46-1.17-.68-1.74-.92 1.13-.7 1.78-1.94 1.99-2.9.59.2 1.35.36 1.82.12.54-.28.66-1.06.29-1.65-.36-.56-1.11-.88-1.68-1.11.3-.75.53-2.05.53-3.13 0-3.28-2.16-5.73-5.48-5.73z"/></svg>`,
+    };
+  }
+
+  // 5. TeamViewer
+  if (norm.includes('teamviewer') || norm.includes('team viewer')) {
+    return {
+      bg: '#0a2444',
+      color: '#0E70EB',
+      label: 'TV',
+      svg: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" fill="#0E70EB"/><path d="M7 12h10 M14 9l3 3-3 3 M10 9l-3 3 3 3" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    };
+  }
+
+  // 6. TikTok
+  if (norm.includes('tiktok') || norm.includes('tik tok')) {
+    return {
+      bg: '#161920',
+      color: '#25F4EE',
+      label: 'TT',
+      svg: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 1 1-2.896-2.895c.386 0 .753.076 1.09.213V9.453A6.335 6.335 0 0 0 9.07 9.17 6.34 6.34 0 1 0 15.41 15.51V8.65a8.21 8.21 0 0 0 4.179 1.135V6.686z"/></svg>`,
+    };
+  }
+
+  // 7. WhatsApp
+  if (norm.includes('whatsapp') || norm.includes('whats app')) {
+    return {
+      bg: '#102d1e',
+      color: '#25D366',
+      label: 'WA',
+      svg: `<svg viewBox="0 0 24 24" fill="#25D366"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.39-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.59c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.02-1.24-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.45-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.45.06-.68.32-.23.25-.89.87-.89 2.12s.91 2.46 1.04 2.63c.13.17 1.79 2.73 4.33 3.83.61.26 1.08.42 1.45.54.61.19 1.16.17 1.6-.08.49-.28 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.3z"/></svg>`,
+    };
+  }
+
+  // 8. Discord
   if (norm.includes('discord')) {
     return {
       bg: '#2c2f48',
@@ -43,8 +95,8 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 4. Microsoft
-  if (norm.includes('microsoft') || norm.includes('outlook') || norm.includes('office365') || norm.includes('azure')) {
+  // 9. Microsoft / Outlook / Office365 / Azure
+  if (norm.includes('microsoft') || norm.includes('outlook') || norm.includes('office365') || norm.includes('office 365') || norm.includes('azure')) {
     return {
       bg: '#182538',
       color: '#00a4ef',
@@ -53,7 +105,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 5. Amazon / AWS
+  // 10. Amazon / AWS
   if (norm.includes('amazon') || norm.includes('aws')) {
     return {
       bg: '#2d2218',
@@ -63,7 +115,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 6. Steam
+  // 11. Steam / Valve
   if (norm.includes('steam') || norm.includes('valve')) {
     return {
       bg: '#1b2838',
@@ -73,7 +125,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 7. Apple / iCloud
+  // 12. Apple / iCloud
   if (norm.includes('apple') || norm.includes('icloud')) {
     return {
       bg: '#252528',
@@ -83,7 +135,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 8. Reddit
+  // 13. Reddit
   if (norm.includes('reddit')) {
     return {
       bg: '#331a14',
@@ -93,8 +145,8 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 9. Twitter / X
-  if (norm.includes('twitter') || norm.includes('x.com') || norm === 'x') {
+  // 14. Twitter / X
+  if (norm.includes('twitter') || norm.includes('x.com') || norm.split(' ').includes('x')) {
     return {
       bg: '#1b222d',
       color: '#ffffff',
@@ -103,7 +155,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 10. Facebook / Meta
+  // 15. Facebook / Meta
   if (norm.includes('facebook') || norm.includes('meta')) {
     return {
       bg: '#0c2e59',
@@ -113,7 +165,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 11. Binance
+  // 16. Binance
   if (norm.includes('binance') || norm.includes('bnb')) {
     return {
       bg: '#2b2308',
@@ -123,7 +175,17 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 12. Cloudflare
+  // 17. Coinbase
+  if (norm.includes('coinbase')) {
+    return {
+      bg: '#0b2247',
+      color: '#0052FF',
+      label: 'CB',
+      svg: `<svg viewBox="0 0 24 24" fill="#0052FF"><circle cx="12" cy="12" r="10"/><rect x="8.5" y="8.5" width="7" height="7" rx="1.5" fill="#FFFFFF"/></svg>`,
+    };
+  }
+
+  // 18. Cloudflare
   if (norm.includes('cloudflare')) {
     return {
       bg: '#332014',
@@ -133,7 +195,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 13. Twitch
+  // 19. Twitch
   if (norm.includes('twitch')) {
     return {
       bg: '#271b38',
@@ -143,7 +205,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 14. OpenAI / ChatGPT
+  // 20. OpenAI / ChatGPT
   if (norm.includes('openai') || norm.includes('chatgpt')) {
     return {
       bg: '#123028',
@@ -153,7 +215,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 15. Spotify
+  // 21. Spotify
   if (norm.includes('spotify')) {
     return {
       bg: '#12301c',
@@ -163,8 +225,8 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 16. PayPal
-  if (norm.includes('paypal')) {
+  // 22. PayPal
+  if (norm.includes('paypal') || norm.includes('pay pal')) {
     return {
       bg: '#0e2340',
       color: '#0079C1',
@@ -173,7 +235,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 17. GitLab
+  // 23. GitLab
   if (norm.includes('gitlab')) {
     return {
       bg: '#331c12',
@@ -183,7 +245,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 18. Dropbox
+  // 24. Dropbox
   if (norm.includes('dropbox')) {
     return {
       bg: '#10243d',
@@ -193,7 +255,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 19. Proton (Mail / VPN)
+  // 25. Proton (Mail / VPN)
   if (norm.includes('proton')) {
     return {
       bg: '#211833',
@@ -203,7 +265,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 20. Notion
+  // 26. Notion
   if (norm.includes('notion')) {
     return {
       bg: '#252525',
@@ -213,7 +275,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 21. LinkedIn
+  // 27. LinkedIn
   if (norm.includes('linkedin')) {
     return {
       bg: '#0a2540',
@@ -223,7 +285,7 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
-  // 22. Telegram
+  // 28. Telegram
   if (norm.includes('telegram')) {
     return {
       bg: '#142c40',
@@ -233,13 +295,93 @@ export function getBrandInfo(issuerOrAccount: string): BrandInfo {
     };
   }
 
+  // 29. Bitwarden
+  if (norm.includes('bitwarden')) {
+    return {
+      bg: '#0f2240',
+      color: '#175DDC',
+      label: 'BW',
+      svg: `<svg viewBox="0 0 24 24" fill="#175DDC"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 3.3c2.6 0 4.7 2.1 4.7 4.7 0 2.2-1.5 4.1-3.6 4.6v3.2h-2.2v-3.2c-2.1-.5-3.6-2.4-3.6-4.6 0-2.6 2.1-4.7 4.7-4.7z"/></svg>`,
+    };
+  }
+
+  // 30. 1Password
+  if (norm.includes('1password') || norm.includes('onepassword')) {
+    return {
+      bg: '#0b243d',
+      color: '#0A85EA',
+      label: '1P',
+      svg: `<svg viewBox="0 0 24 24" fill="#0A85EA"><circle cx="12" cy="12" r="10"/><path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm0 3a2.5 2.5 0 0 1 2.5 2.5v1a2.5 2.5 0 0 1-5 0v-1a2.5 2.5 0 0 1 2.5-2.5z" fill="#FFFFFF"/></svg>`,
+    };
+  }
+
+  // 31. Epic Games
+  if (norm.includes('epic') || norm.includes('epicgames')) {
+    return {
+      bg: '#1e1e24',
+      color: '#FFFFFF',
+      label: 'EPIC',
+      svg: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 2.5v19l8.5 2.5 8.5-2.5v-19l-8.5 2.5zm3.5 5.5h10v2.2h-7v2.4h6v2.2h-6v2.4h7v2.2H7z"/></svg>`,
+    };
+  }
+
+  // 32. Adobe
+  if (norm.includes('adobe')) {
+    return {
+      bg: '#361214',
+      color: '#FF0000',
+      label: 'AD',
+      svg: `<svg viewBox="0 0 24 24" fill="#FF0000"><path d="M13.96 2H24v20l-5.63-14.07zM10.04 2H0v20l5.63-14.07zM12 7.74l3.18 7.95h-2.67l-1.28-3.2h-2.1l2.87 7.51H9.41z"/></svg>`,
+    };
+  }
+
+  // 33. Zoom
+  if (norm.includes('zoom')) {
+    return {
+      bg: '#102340',
+      color: '#2D8CFF',
+      label: 'ZM',
+      svg: `<svg viewBox="0 0 24 24" fill="#2D8CFF"><path d="M4 6.5h11c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-7c0-1.1.9-2 2-2zm14 2.5l4-3v12l-4-3V9z"/></svg>`,
+    };
+  }
+
+  // 34. Salesforce
+  if (norm.includes('salesforce')) {
+    return {
+      bg: '#0e2640',
+      color: '#00A1E0',
+      label: 'SF',
+      svg: `<svg viewBox="0 0 24 24" fill="#00A1E0"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>`,
+    };
+  }
+
+  // 35. Uber
+  if (norm.includes('uber')) {
+    return {
+      bg: '#1e1e1e',
+      color: '#FFFFFF',
+      label: 'UB',
+      svg: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" fill="#1e1e1e"/><rect x="9.5" y="11" width="5" height="2" fill="currentColor"/></svg>`,
+    };
+  }
+
+  // 36. Stripe
+  if (norm.includes('stripe')) {
+    return {
+      bg: '#1c1e38',
+      color: '#635BFF',
+      label: 'ST',
+      svg: `<svg viewBox="0 0 24 24" fill="#635BFF"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.97 16.14.4 13.976.4 8.796.4 5.3 3.12 5.3 7.424c0 4.304 3.496 5.86 6.848 6.993 2.122.718 2.87 1.353 2.87 2.302 0 .976-.879 1.488-2.316 1.488-2.164 0-4.99-.988-6.942-2.074l-.94 5.58c1.942.87 4.542 1.387 7.02 1.387 5.485 0 9.16-2.613 9.16-7.142 0-4.084-3.136-5.882-7.024-6.808z"/></svg>`,
+    };
+  }
+
   // Fallback: Dynamic deterministic harmonious color + clean 2-letter uppercase initials
   let hash = 0;
-  for (let i = 0; i < norm.length; i++) {
-    hash = norm.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < primaryName.length; i++) {
+    hash = primaryName.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash % 360);
-  const initials = (issuerOrAccount.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '2F').toUpperCase();
+  const initials = (primaryName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || '2F').toUpperCase();
 
   return {
     bg: `hsl(${hue}, 40%, 18%)`,

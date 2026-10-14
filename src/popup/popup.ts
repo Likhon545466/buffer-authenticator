@@ -479,7 +479,7 @@ function renderAccounts() {
     }
 
     const isEmail = acc.account && acc.account.includes('@');
-    const brand = getBrandInfo(acc.issuer || acc.account);
+    const brand = getBrandInfo(acc.issuer, acc.account);
 
     card.innerHTML = `
       <div class="account-main">
