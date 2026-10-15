@@ -1,6 +1,6 @@
 {
   "name": "buffer-authenticator",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Buffer Authenticator - Secure, offline, privacy-first TOTP 2FA authenticator Chrome extension",
   "private": true,
   "type": "module",

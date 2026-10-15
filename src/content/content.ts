@@ -22,9 +22,9 @@ const PROCESSED_ATTR = 'data-buffer-auth-detected';
 /**
  * Detect if input is part of a 4-8 box split OTP cluster (e.g. GitHub, Amazon, Steam)
  */
-function getSegmentedCluster(el: HTMLInputElement): HTMLInputElement[] | null {
+export function getSegmentedCluster(el: HTMLInputElement): HTMLInputElement[] | null {
   if (el.maxLength !== 1 && el.getAttribute('size') !== '1') return null;
-  const parent = el.form || el.closest('form') || el.parentElement;
+  const parent = el.form || (typeof el.closest === 'function' ? el.closest('form') : null) || el.parentElement;
   if (!parent) return null;
   const inputs = Array.from(parent.querySelectorAll<HTMLInputElement>('input')).filter(
     (i) => (i.maxLength === 1 || i.getAttribute('size') === '1') &&
@@ -39,45 +39,153 @@ function getSegmentedCluster(el: HTMLInputElement): HTMLInputElement[] | null {
 /**
  * Heuristic check if an input field is an OTP / 2FA field
  */
-function isOtpField(el: HTMLInputElement): boolean {
+export function isOtpField(el: HTMLInputElement): boolean {
   if (el.hasAttribute(PROCESSED_ATTR)) return false;
-  if (el.type === 'password' && el.maxLength !== 1) {
-    return false;
-  }
-  if (el.type === 'hidden' || el.type === 'checkbox' || el.type === 'radio') {
+  if (
+    el.type === 'hidden' ||
+    el.type === 'checkbox' ||
+    el.type === 'radio' ||
+    el.type === 'submit' ||
+    el.type === 'button' ||
+    el.type === 'file' ||
+    el.type === 'image'
+  ) {
     return false;
   }
   if (el.disabled || el.readOnly) return false;
 
-  // Segmented input cluster check: only attach trigger to the FIRST input in the cluster
+  // Segmented input cluster check: attach trigger to the LAST input in the cluster
   const cluster = getSegmentedCluster(el);
   if (cluster) {
-    if (cluster[0] === el) {
-      cluster.slice(1).forEach((sib) => sib.setAttribute(PROCESSED_ATTR, 'cluster-sibling'));
+    const triggerEl = cluster[cluster.length - 1];
+    if (triggerEl === el) {
+      cluster.slice(0, -1).forEach((sib) => sib.setAttribute(PROCESSED_ATTR, 'cluster-sibling'));
       return true;
     }
     return false;
   }
 
+  // Explicit autocomplete check
   const autocomplete = (el.getAttribute('autocomplete') || '').toLowerCase();
-  if (autocomplete === 'one-time-code') {
+  if (
+    autocomplete.includes('one-time-code') ||
+    autocomplete === 'otp' ||
+    autocomplete === '2fa' ||
+    autocomplete === 'totp'
+  ) {
     return true;
   }
 
-  const name = (el.name || '').toLowerCase();
-  const id = (el.id || '').toLowerCase();
-  const placeholder = (el.placeholder || '').toLowerCase();
-  const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+  // Check explicit placeholder masks (e.g. GitHub 'XXXXXX', 'XXX-XXX', '000000', '123456')
+  const rawPlaceholder = (el.placeholder || '').trim();
+  if (
+    /^x{6,8}$/i.test(rawPlaceholder) ||
+    /^x{3}[\s\-_]x{3}$/i.test(rawPlaceholder) ||
+    /^0{6,8}$/.test(rawPlaceholder) ||
+    /^[•·]{6,8}$/.test(rawPlaceholder) ||
+    /^[_\-\s]{6,8}$/.test(rawPlaceholder)
+  ) {
+    return true;
+  }
 
-  const keywords = ['otp', '2fa', 'mfa', 'totp', 'token', 'verification_code', 'security code', 'authenticator', 'two-factor', 'two_factor'];
-  const matched = keywords.some(
-    (kw) => name.includes(kw) || id.includes(kw) || placeholder.includes(kw) || ariaLabel.includes(kw)
-  );
-  if (matched) return true;
+  // Normalization helper: split camelCase, convert underscores/hyphens/dots to spaces
+  const normalize = (val: string) =>
+    val
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[-_.]/g, ' ')
+      .toLowerCase()
+      .trim();
+
+  const name = normalize(el.name || '');
+  const id = normalize(el.id || '');
+  const placeholder = normalize(el.placeholder || '');
+  const ariaLabel = normalize(el.getAttribute('aria-label') || '');
+  const title = normalize(el.title || '');
+  const combined = `${name} ${id} ${placeholder} ${ariaLabel} ${title}`;
+
+  // Reject non-2FA fields (postal codes, zip, cvc, currency, coupons)
+  const nonOtpTerms = ['postal', 'zip', 'coupon', 'promo', 'discount', 'currency', 'area', 'cvv', 'cvc'];
+  if (nonOtpTerms.some((term) => combined.includes(term))) {
+    return false;
+  }
+
+  // Primary 2FA terms
+  const explicit2faTerms = [
+    'otp',
+    '2fa',
+    'mfa',
+    'totp',
+    'verification code',
+    'authenticator',
+    'two factor',
+    'two step',
+    '2 factor',
+    '2 step',
+    'one time code',
+    'security code',
+  ];
+  const hasExplicit2fa = explicit2faTerms.some((term) => combined.includes(term));
+
+  // If input type is password, only accept if explicit 2FA terminology is present
+  if (el.type === 'password') {
+    return hasExplicit2fa;
+  }
+
+  if (hasExplicit2fa) {
+    return true;
+  }
+
+  // Secondary OTP keywords
+  const otpKeywords = [
+    'token',
+    'passcode',
+    'pass code',
+    'pin',
+    'idvpin',
+    'otc',
+    'twofactor',
+    'twostep',
+    'challenge',
+    'verification',
+    'verify',
+    'auth code',
+    'login code',
+    'sms code',
+  ];
+
+  if (otpKeywords.some((kw) => combined.includes(kw))) {
+    return true;
+  }
+
+  // Match standalone or compound word 'code' in an auth or numeric context
+  if (/\bcode\b/i.test(combined)) {
+    if (
+      el.type === 'tel' ||
+      el.type === 'number' ||
+      el.inputMode === 'numeric' ||
+      el.maxLength === 6 ||
+      el.maxLength === 8 ||
+      el.size === 6 ||
+      el.size === 8 ||
+      combined.includes('auth') ||
+      combined.includes('security') ||
+      combined.includes('login') ||
+      combined.includes('sign in') ||
+      combined.includes('enter') ||
+      el.name.toLowerCase() === 'code' ||
+      el.id.toLowerCase() === 'code'
+    ) {
+      return true;
+    }
+  }
 
   // Pattern or maxlength check (e.g. 6 or 8 digits)
   const maxLength = el.maxLength;
   if ((maxLength === 6 || maxLength === 8) && (el.type === 'tel' || el.type === 'number' || el.inputMode === 'numeric')) {
+    return true;
+  }
+
+  if (el.pattern && /(\[0-9\]|\\d|\d)\{(?:6|8|6,8)\}/.test(el.pattern)) {
     return true;
   }
 
@@ -169,14 +277,18 @@ function fillOtpIntoInput(input: HTMLInputElement, code: string) {
 function attachAutofillTrigger(input: HTMLInputElement) {
   input.setAttribute(PROCESSED_ATTR, 'true');
 
-  // Prevent input text from colliding with the icon badge
-  const computedStyle = window.getComputedStyle(input);
-  const currentPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
-  if (currentPaddingRight < 34) {
-    input.style.paddingRight = `${currentPaddingRight + 30}px`;
+  const isSegmented = input.maxLength === 1 || input.getAttribute('size') === '1';
+
+  // Prevent input text from colliding with the icon badge (only on standard inputs, not single-digit boxes)
+  if (!isSegmented) {
+    const computedStyle = window.getComputedStyle(input);
+    const currentPaddingRight = parseFloat(computedStyle.paddingRight) || 0;
+    if (currentPaddingRight < 34) {
+      input.style.paddingRight = `${currentPaddingRight + 30}px`;
+    }
   }
 
-  // Create isolated container in document body
+  // Create isolated container in document root
   const host = document.createElement('div');
   host.className = HOST_CONTAINER_CLASS;
   host.style.position = 'fixed';
@@ -202,34 +314,36 @@ function attachAutofillTrigger(input: HTMLInputElement) {
         position: fixed;
         width: 24px;
         height: 24px;
-        background: #111318;
-        border: 1px solid rgba(168, 199, 250, 0.35);
-        border-radius: 6px;
+        background: linear-gradient(135deg, #004a77 0%, #002d4c 100%);
+        border: 1px solid rgba(168, 199, 250, 0.45);
+        border-radius: 7px;
         color: #a8c7fa;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         pointer-events: auto;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.18);
         transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
         user-select: none;
         z-index: 2147483646;
       }
       .badge-btn:hover {
-        background: #1e222a;
+        background: linear-gradient(135deg, #005d96 0%, #00375d 100%);
         border-color: #a8c7fa;
         color: #ffffff;
         transform: scale(1.08);
-        box-shadow: 0 0 10px rgba(168, 199, 250, 0.45);
+        box-shadow: 0 0 12px rgba(168, 199, 250, 0.55), inset 1px 1px 2px rgba(255, 255, 255, 0.3);
       }
       .badge-btn:active {
+        background: linear-gradient(135deg, #0842a0 0%, #004a77 100%);
         transform: scale(0.96);
       }
       .badge-btn.active {
-        background: #0842a0;
+        background: linear-gradient(135deg, #0842a0 0%, #004a77 100%);
         border-color: #a8c7fa;
         color: #ffffff;
+        box-shadow: 0 0 14px rgba(168, 199, 250, 0.7);
       }
       .shield-icon {
         width: 14px;
@@ -237,6 +351,8 @@ function attachAutofillTrigger(input: HTMLInputElement) {
         fill: none;
         stroke: currentColor;
         stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
 
       /* Interactive 2FA Live Card Popover */
@@ -642,7 +758,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
     </style>
 
     <button type="button" class="badge-btn" id="badge-trigger" title="Buffer Authenticator (Click to view live 2FA code)">
-      <svg class="shield-icon" viewBox="0 0 24 24">
+      <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
     </button>
@@ -650,7 +766,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
     <div class="autofill-popover" id="popover-panel">
       <div class="popover-header">
         <div class="popover-title-row">
-          <svg class="shield-icon" style="width: 13px; height: 13px; color: #a8c7fa;" viewBox="0 0 24 24">
+          <svg class="shield-icon" style="width: 13px; height: 13px; color: #a8c7fa;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           <span class="popover-brand">Buffer Authenticator</span>
@@ -678,7 +794,10 @@ function attachAutofillTrigger(input: HTMLInputElement) {
     </div>
   `;
 
-  document.body.appendChild(host);
+  const container = document.documentElement || document.body;
+  if (container) {
+    container.appendChild(host);
+  }
 
   const badgeBtn = shadow.getElementById('badge-trigger') as HTMLButtonElement;
   const popover = shadow.getElementById('popover-panel') as HTMLDivElement;
@@ -696,7 +815,7 @@ function attachAutofillTrigger(input: HTMLInputElement) {
   let isVaultInitialized = true;
 
   /**
-   * Position the in-field badge at the right edge of the input
+   * Position the in-field badge at the right edge of the input (or beside segmented clusters)
    */
   function updateBadgePosition() {
     if (!document.contains(input)) {
@@ -706,7 +825,17 @@ function attachAutofillTrigger(input: HTMLInputElement) {
 
     const rect = input.getBoundingClientRect();
     const style = window.getComputedStyle(input);
-    if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden') {
+    if (
+      rect.bottom < 0 ||
+      rect.top > window.innerHeight ||
+      rect.right < 0 ||
+      rect.left > window.innerWidth ||
+      rect.width === 0 ||
+      rect.height === 0 ||
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.opacity === '0'
+    ) {
       badgeBtn.style.display = 'none';
       if (isPopoverOpen) closePopover();
       return;
@@ -715,7 +844,16 @@ function attachAutofillTrigger(input: HTMLInputElement) {
     badgeBtn.style.display = 'flex';
     const badgeSize = 24;
     const top = Math.round(rect.top + (rect.height - badgeSize) / 2);
-    const left = Math.round(rect.right - badgeSize - 6);
+
+    let left = Math.round(rect.right - badgeSize - 6);
+    if (isSegmented) {
+      const spaceRight = window.innerWidth - rect.right;
+      if (spaceRight >= badgeSize + 8) {
+        left = Math.round(rect.right + 8);
+      } else {
+        left = Math.round(rect.right - badgeSize - 4);
+      }
+    }
 
     badgeBtn.style.top = `${top}px`;
     badgeBtn.style.left = `${left}px`;
@@ -1210,13 +1348,14 @@ function attachAutofillTrigger(input: HTMLInputElement) {
 
   // Initial positioning
   updateBadgePosition();
+  requestAnimationFrame(updateBadgePosition);
 }
 
 /**
  * Scan document for OTP input fields
  */
 const OTP_TARGETED_SELECTOR =
-  'input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="2fa" i], input[name*="mfa" i], input[name*="code" i], input[id*="otp" i], input[id*="2fa" i], input[id*="code" i], input[placeholder*="code" i], input[type="tel"], input[type="number"]';
+  'input[autocomplete*="one-time-code" i], input[autocomplete="2fa" i], input[name*="otp" i], input[name*="2fa" i], input[name*="mfa" i], input[name*="totp" i], input[name*="code" i], input[name*="token" i], input[name*="pin" i], input[name*="passcode" i], input[name*="twofactor" i], input[name*="twostep" i], input[id*="otp" i], input[id*="2fa" i], input[id*="totp" i], input[id*="code" i], input[id*="token" i], input[id*="pin" i], input[id*="passcode" i], input[placeholder*="code" i], input[placeholder*="otp" i], input[placeholder*="token" i], input[placeholder*="pin" i], input[type="tel"], input[type="number"], input[inputmode="numeric"]';
 
 function scanForOtpFields(root: ParentNode = document) {
   const candidates = root.querySelectorAll<HTMLInputElement>(OTP_TARGETED_SELECTOR);
@@ -1228,7 +1367,7 @@ function scanForOtpFields(root: ParentNode = document) {
 
   if (root === document) {
     const allInputs = document.querySelectorAll<HTMLInputElement>('input');
-    if (allInputs.length < 60) {
+    if (allInputs.length < 80) {
       allInputs.forEach((input) => {
         if (isOtpField(input)) {
           attachAutofillTrigger(input);
@@ -1238,52 +1377,96 @@ function scanForOtpFields(root: ParentNode = document) {
   }
 }
 
-// Initial scan
-scanForOtpFields();
+// Initial scan and observer setup
+if (typeof document !== 'undefined') {
+  scanForOtpFields();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => scanForOtpFields());
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => scanForOtpFields());
+    setTimeout(() => scanForOtpFields(), 150);
+    setTimeout(() => scanForOtpFields(), 500);
+    setTimeout(() => scanForOtpFields(), 1200);
+  }
 
-// Lightweight incremental MutationObserver
-const observer = new MutationObserver((mutations) => {
-  for (let m = 0; m < mutations.length; m++) {
-    const added = mutations[m].addedNodes;
-    for (let i = 0; i < added.length; i++) {
-      const node = added[i];
-      if (node.nodeType === 1) {
-        const el = node as Element;
-        if (el.tagName === 'INPUT' && isOtpField(el as HTMLInputElement)) {
-          attachAutofillTrigger(el as HTMLInputElement);
-        } else if (el.firstElementChild) {
-          scanForOtpFields(el);
+  // Lightweight incremental MutationObserver
+  const observer = new MutationObserver((mutations) => {
+    let needsScan = false;
+    for (let m = 0; m < mutations.length; m++) {
+      const mut = mutations[m];
+      if (mut.type === 'childList') {
+        const added = mut.addedNodes;
+        for (let i = 0; i < added.length; i++) {
+          const node = added[i];
+          if (node.nodeType === 1) {
+            const el = node as Element;
+            if (el.tagName === 'INPUT' && isOtpField(el as HTMLInputElement)) {
+              attachAutofillTrigger(el as HTMLInputElement);
+            } else if (el.firstElementChild) {
+              scanForOtpFields(el);
+            }
+          }
         }
+      } else if (mut.type === 'attributes') {
+        needsScan = true;
       }
     }
-  }
-});
+    if (needsScan) {
+      scanForOtpFields();
+      window.dispatchEvent(new Event('resize'));
+    }
+  });
 
-function startObserver() {
-  const target = document.body || document.documentElement;
-  if (target) {
-    observer.observe(target, { childList: true, subtree: true });
+  function startObserver() {
+    const target = document.documentElement || document.body;
+    if (target) {
+      observer.observe(target, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'hidden', 'type', 'disabled'],
+      });
+    }
   }
+
+  startObserver();
+
+  // Document-level focusin listener: immediately detect or reposition when user focuses 2FA field
+  document.addEventListener(
+    'focusin',
+    (e) => {
+      const target = e.target;
+      if (target instanceof HTMLInputElement) {
+        if (isOtpField(target)) {
+          attachAutofillTrigger(target);
+        } else if (target.hasAttribute(PROCESSED_ATTR)) {
+          window.dispatchEvent(new Event('resize'));
+        }
+      }
+    },
+    true
+  );
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      observer.disconnect();
+    } else {
+      scanForOtpFields();
+      startObserver();
+    }
+  });
 }
-
-startObserver();
-
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    observer.disconnect();
-  } else {
-    scanForOtpFields();
-    startObserver();
-  }
-});
 
 // ============================================================================
 // Right-Click Context Menu "Add QR Code to Buffer Authenticator" Handler
 // ============================================================================
 let lastRightClickedElement: HTMLElement | null = null;
-document.addEventListener('contextmenu', (e) => {
-  lastRightClickedElement = e.target as HTMLElement;
-}, true);
+if (typeof document !== 'undefined') {
+  document.addEventListener('contextmenu', (e) => {
+    lastRightClickedElement = e.target as HTMLElement;
+  }, true);
+}
 
 function showPageToast(message: string, type: 'success' | 'warning' | 'error' = 'success') {
   let toastEl = document.getElementById('buffer-auth-toast-container');
@@ -1402,10 +1585,12 @@ async function handleContextMenuScan(srcUrl?: string) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === 'CONTEXT_MENU_SCAN_QR') {
-    handleContextMenuScan(message.srcUrl);
-    sendResponse({ received: true });
-  }
-});
+if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === 'CONTEXT_MENU_SCAN_QR') {
+      handleContextMenuScan(message.srcUrl);
+      sendResponse({ received: true });
+    }
+  });
+}
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-10-15
+
+### Fixed
+- **Content Script Standalone IIFE Packaging (Critical Root Cause Fix)**:
+  - Fixed a bundling regression where Vite split shared brand icon utilities into an external ES module chunk (`assets/brand-icons-*.js`), generating `import ... from ...` inside `dist/content/content.js`. Because Chrome Manifest V3 content scripts execute as classic scripts and do not support ES module `import` syntax, Chrome threw `SyntaxError: Cannot use import statement outside a module` and killed the script before any OTP detection or icon rendering could run.
+  - Implemented an automatic standalone IIFE build hook in `vite.config.ts` so `dist/content/content.js` is compiled with zero external `import` statements and 100% self-contained code.
+- **Autofill 2FA Icon Detection & Visibility**:
+  - Expanded heuristic matching in `isOtpField` to comprehensively recognize placeholder masks (such as GitHub's `XXXXXX`, `XXX-XXX`, `000000`, and `• • • • • •`), Google `pin`/`idvPin`, Microsoft `otc`, Apple/GitHub `passcode`, Discord/Facebook `code`, PayPal `security_code`, Steam `twofactorcode`, numeric 6/8-digit patterns, etc.
+  - Added dynamic SPA and multi-step login detection using attribute observing in `MutationObserver`, staggered post-load sweeps, and global `focusin` listeners, ensuring the autofill trigger is attached immediately when a 2FA prompt appears or is focused.
+  - Enabled `"all_frames": true` in `manifest.json` for seamless 2FA prompt detection inside login iframes.
+  - Fixed segmented 6-box OTP badge docking: positioned neatly beside the last digit box without modifying padding or distorting individual digit input boxes.
+  - Upgraded badge button aesthetics to the official squircle gradient (`#004a77` to `#002d4c`) with round-cap shield vector and claymorphic elevation.
+
+---
+
 ## [1.2.0] - 2026-10-15
 
 ### Added
